@@ -1,0 +1,26 @@
+1.viewModelScope 什么时候关闭的
+https://juejin.cn/post/6975475055375417381
+
+2.由浅入深，详解 ViewModel 的那些事
+https://mp.weixin.qq.com/s/jAUVz8oDysnrCfopApqP1A
+
+ViewModel 的使用方式；
+SavedStateHandle 的使用方式；
+ViewModel 创建与销毁流程；
+SavedStateHandle 创建流程；
+
+3.lifecycleScope与viewModelScope
+lifecycleScope
+作用域CoroutineScope绑定到LifecycleOwner的生命周期，销毁生命周期的时候，取消此作用域。作用域的协程也会被取消。并且我们知道LifecycleOwner的生命周期可以和Activity绑定，因此也就是间接的将CoroutineScope和Activity的生命周期绑定。当Activity被销毁的时候，取消此作用域
+
+viewModelScope
+作用域CoroutineScope绑定到ViewModel，ViewModel被清除的时候，取消此作用域。
+
+4.由浅入深，详解 Lifecycle 生命周期组件的那些事
+https://juejin.cn/post/7168868230977552421
+
+5.Lifecycle 的 Event & State
+https://blog.csdn.net/aha_jasper/article/details/111178829
+
+6.LiveData
+https://mp.weixin.qq.com/s/zW6X1CTnjdb3NX-d7nr6cw

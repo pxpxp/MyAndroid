@@ -1,0 +1,25 @@
+1、inline noinline 和 crossinline
+https://mp.weixin.qq.com/s/iOId4kwYe1HCyrS4T-yb8w （扔物线）
+
+总结：
+    inline 可以让你用内联——也就是函数内容直插到调用处——的方式来优化代码结构，从而减少函数类型的对象的创建；
+    noinline 是局部关掉这个优化，来摆脱 inline 带来的「不能把函数类型的参数当对象使用」的限制；
+    crossinline 让内联函数里的函数类型的参数可以被间接调用，代价是不能在Lambda表达式里使用return。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

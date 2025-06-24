@@ -1,0 +1,56 @@
+Look under the hood of uCrop, the image cropping library for Android
+Source: https://yalantis.com/blog/how-we-created-ucrop-our-own-image-cropping-library-for-android/
+
+英文版
+https://yalantis.com/blog/how-we-created-ucrop-our-own-image-cropping-library-for-android/
+中文版
+https://www.jianshu.com/p/a8bd09e20827
+github
+uCrop - Image Cropping Library for Android
+https://github.com/Yalantis/uCrop
+
+
+===========================================================================================
+其他库
+仿微信图片编辑
+https://github.com/zhuguohui/WeiXinPictureTool-master
+一款图片编辑类库，功能类似微信中图片编辑功能，其主要目标用于聊天中快速编辑图片。
+https://github.com/minetsh/Imaging
+
+
+   - **注意事项**：
+     - 这种方法依赖于屏幕尺寸阈值的选择，不同的应用可能根据自身需求设置不同的阈值。例如，对于一些对屏幕空间要求较高的应用，可
+     能会将阈值设置得较低，以将一些较大屏幕的手机也视为平板来进行布局优化。
+     - 屏幕尺寸的计算涉及到单位转换（从像素转换为英寸），需要注意使用正确的转换方法（这里使用`TypedValue.applyDimension`方法），
+     并且不同设备的屏幕密度可能会影响计算结果的准确性。
+
+2. **使用配置限定符（基于资源文件的判断）**
+   - **原理**：Android允许在项目的资源目录中使用配置限定符来提供不同的资源文件，以适配不同的设备类型。例如，可以通过创建不同的布局文件目录，
+   如`layout - sw600dp`（用于屏幕宽度大于等于600dp的设备，通常认为是平板）和`layout - sw360dp`（用于屏幕宽度小于600dp的设备，通常认为是手机），
+   来自动为不同设备加载合适的布局。在代码中，可以通过检查当前加载的资源目录来间接判断设备是否是平板。
+   - **示例代码（检查资源配置）**：
+     ```java
+     import android.content.Context;
+     import android.content.res.Configuration;
+     import android.util.DisplayMetrics;
+     import android.util.TypedValue;
+
+     public class DeviceTypeUtil {
+         public static boolean isTablet(Context context) {
+             return (context.getResources().getConfiguration().screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) >= Configuration.SCREENLAYOUT_SIZE_LARGE;
+         }
+     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

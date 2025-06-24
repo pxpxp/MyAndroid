@@ -1,0 +1,19 @@
+pluginManagement {
+    ext.kotlin_version = "1.8.20"
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "MyAndroid"
+include ':app'
+include ':http'
+include ':learn'

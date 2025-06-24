@@ -1,0 +1,12 @@
+1.协程是什么
+    其实就是一套有Kotlin官方提供的线程API，是一个线程框架。
+
+2.挂起是什么
+    其实就是一个稍后会被自动切回来的线程切换，切回来的操作在协程叫做resume操作。
+    suspend的作用是提醒，函数的创建者对函数的调用者的提醒。
+
+3.关于kotlin中的flow
+https://juejin.cn/post/6974593318248251400
+
+4.Flow,SharedFlow,StateFlow的使用及原理
+https://juejin.cn/post/7275975684148723746

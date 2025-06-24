@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn"
+                android:layout_width="match_parent"
+                android:layout_height="45dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="10dp"
+                android:text="单独测试某个自定义View"
+                android:layout_marginEnd="16dp"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <com.example.myandroid.widget.timekids.CirclePathArrowView
+                android:id="@+id/circlePathArrowView"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                android:layout_marginTop="10dp"
+                android:background="@color/black"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/btn" />
+
+            <com.example.myandroid.widget.timekids.LedDisplayView
+                android:id="@+id/ledDisplayView"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/circlePathArrowView" />
+
+            <!--描边动画实现母亲节祝福效果-->
+            <com.example.myandroid.widget.FontPathToPointsView
+                android:id="@+id/fontPathToPointsView"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginTop="10dp"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/ledDisplayView" />
+
+            <TextView
+                android:id="@+id/tv_html"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/fontPathToPointsView" />
+
+            <!--图片描边效果 https://juejin.cn/post/7310786575213920306 -->
+            <com.example.myandroid.widget.ViewHighLight
+                android:id="@+id/view_highLight"
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:layout_marginLeft="10dp"
+                android:layout_marginTop="10dp"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_html" />
+
+            <com.example.myandroid.widget.progress.CircularProgressBar
+                android:id="@+id/circular_progressBar"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:layout_marginLeft="10dp"
+                android:layout_marginTop="10dp"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/view_highLight"
+                app:maxProgress="100"
+                app:progress="10"
+                app:progressbarBackgroundColor="@color/purple_500"
+                app:progressbarColor="@color/purple_200"
+                app:radius="100dp"
+                app:strokeWidth="16dp"
+                app:text="10%"
+                app:textColor="@color/teal_200"
+                app:textSize="28sp" />
+
+            <com.example.myandroid.widget.progress.CircleLoadingView
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/circular_progressBar"
+                android:layout_width="200dp"
+                android:layout_height="200dp"/>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.core.widget.NestedScrollView>

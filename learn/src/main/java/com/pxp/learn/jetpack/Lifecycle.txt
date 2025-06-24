@@ -1,0 +1,62 @@
+由浅入深，详解 Lifecycle 生命周期组件的那些事
+https://juejin.cn/post/7168868230977552421
+
+1.LifecycleRegistry
+Lifecycle 的具体实现者,正如其名所示，主要用于管理当前订阅的 观察者对象 ,所以也承担了 Lifecycle 具体的实现逻辑
+
+    addObserver
+    public void addObserver(@NonNull LifecycleObserver observer){
+        // 初始化状态,destory or init
+        State initialState = mState == DESTROYED ? DESTROYED : INITIALIZED;
+        // 📌 初始化实际分发状态的包装类
+        ObserverWithState statefulObserver = new ObserverWithState(observer, initialState);
+        // 将观察者添加到具体的map中,如果已经存在了则返回之前的,否则创建新的添加到map中
+        ObserverWithState previous = mObserverMap.putIfAbsent(observer, statefulObserver);
+        // 如果上一步添加成功了,putIfAbsent会返回null
+        if (previous != null) {
+            return;
+        }
+        
+         // 如果act或者ff被回收了,直接return
+         LifecycleOwner lifecycleOwner = mLifecycleOwner.get();
+         if (lifecycleOwner == null) {
+            return;
+         }
+
+         // 当前添加的观察者数量!=0||正在处理事件
+         boolean isReentrance = mAddingObserverCounter != 0 || mHandlingEvent;
+        // 📌 取得观察者当前的状态...mObserverMap中ObserverWithState
+        State targetState = calculateTargetState(observer);
+        mAddingObserverCounter++;
+        // 📌 如果当前观察者状态小于当前生命周期所在状态&&这个观察者已经被存到了观察者列表中
+        while ((statefulObserver.mState.compareTo(targetState) < 0
+                && mObserverMap.contains(observer))) {
+                // 保存当前的生命周期状态
+                pushParentState(statefulObserver.mState);
+                // 返回当前生命周期状态对应的接下来的事件序列
+                final Event event = Event.upFrom(statefulObserver.mState);
+                ...
+                // 分发事件
+                statefulObserver.dispatchEvent(lifecycleOwner, event);
+                // 移除当前的生命周期状态
+                popParentState();
+                // 再次获得当前的状态,以便继续执行
+                targetState = calculateTargetState(observer);
+        }
+        
+        // 处理一遍事件,保证事件同步
+        if (!isReentrance) {
+            sync();
+        }
+        // 回归默认值
+        mAddingObserverCounter--;
+    }
+
+2.Activity中的实现
+    ComponentActivity
+    Activity 中调用 getLifecycle()时,内部实际上是调用了 ComponentActivity.mLifecycleRegistry,具体逻辑如下：
+    ReportFragment.injectIfNeededIn(this);
+    内部会对sdk进行判断，对应着两套流程，对于 sdk>=29 的,通过注册 Activity.registerActivityLifecycleCallbacks() 事件实现监听，对于 sdk<29 的,重写 Fragment 相应的生命周期方法完成。
+
+3.Fragment中的实现
+    lifecycle 实例会在 Fragment 构造函数 中进行初始化,而 mViewLifecycleOwner 会在 performCreateView() 执行时初始化,然后在相应的 performXxx 生命周期执行时,调用相应的 lifecycle.handleLifecycleEvent() 从而完成事件的通知。

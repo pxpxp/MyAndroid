@@ -1,0 +1,33 @@
+1.Android必知必会的四大组件 -- Activity篇
+https://juejin.cn/post/6844904072110161933
+
+Activity A 跳转Activity B： Apause -> Bcreate -> Bstart -> Bresume -> Astop
+Activity B再按back键回退：  Bpause -> Arestart -> Astart -> Aresume -> Bstop -> Bdestroy
+
+2.Android必知必会的四大组件 -- ContentProvider篇
+
+3.Android必知必会的四大组件 -- Broadcast Receiver篇
+
+Carson带你学Android：BroadcastReceiver史上最全面解析
+https://www.jianshu.com/p/ca3d87a4cdf3
+
+ActivityManagerService之广播(1): 注册与发送
+https://juejin.cn/post/7202907707472117817
+ActivityManagerService之广播(2): 并行发送与串行发送
+https://juejin.cn/post/7204735957777825852
+
+30+ 个 BroadcastReceiver 、ContentProvider 知识点总结，助你拿下心仪 Offer「建议收藏」
+https://juejin.cn/post/6844903989901967368
+
+4.Service的两种启动
+https://www.jianshu.com/p/c40416029e45?utm_campaign=hugo&utm_medium=reader_share&utm_content=note&utm_source=weixin-friends
+
+Service的两种启动方式
+https://www.jianshu.com/p/8a1bdb5062f6
+
+ActivityManagerService之Service(1): 启动过程分析
+https://juejin.cn/post/7205487413349761080
+
+-------------------------------------------------
+可以看这个全部
+https://juejin.cn/user/588993961919207/posts

@@ -1,0 +1,47 @@
+Flutter 系列（一）：运行你的第一个 Flutter 应用
+https://mp.weixin.qq.com/s/LvjH7Aqv7y_6CjezcUfaGA
+
+
+
+问题：打开flutter_console.bat，运行flutter doctor命令就直接闪退，用cmd运行flutter doctor也是直接闪退。
+解决：在环境变量->用户变量中找到Path，发现没有配置WindowsPowerShell，那就添加，配置过了可不用重复配置
+32位系统： C:\Windows\System32\WindowsPowerShell\v1.0
+64位系统： C:\Windows\SysWOW64\WindowsPowerShell\v1.0
+
+
+问题
+C:\Users\gouer>flutter -help
+Checking Dart SDK version...
+Downloading Dart SDK from Flutter engine ...
+Expanding downloaded archive with PowerShell...
+Building flutter tool...
+Running pub upgrade...
+Resolving dependencies... (1.0s)
+Got dependencies.
+Could not find an option with short name "-e".
+
+Run 'flutter -h' (or 'flutter <command> -h') for available flutter commands and options.
+
+
+
+
+https://www.jianshu.com/p/75f5de4deb0b?utm_campaign=maleskine&utm_content=note&utm_medium=seo_notes
+
+
+如何升级dart sdk以及choco不是内部或外部命令
+https://blog.csdn.net/h309849232/article/details/109203658
+如何在WINDOWS中安装DART
+在windows中安装dart，使用Chocolatey命令行进行安装，
+直接使用cmd打开命令行执行choco install dart-sdk报错:
+'choco' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+原因是在windows环境中还没有安装Chocolatey
+安装Chocolatey必须使用windows 的powershell.exe进行安装，windows打开powershell.exe的方法数 Win+x
+打开powershell后执行以下，命令即可:
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+现在就可以按以下步骤安装dart了：
+
+
+
+
+

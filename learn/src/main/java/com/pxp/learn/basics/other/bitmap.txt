@@ -1,0 +1,7 @@
+1.探究Bitmap在Android中的内存占用
+https://blog.csdn.net/xiaoxiaocaizi123/article/details/123112750
+
+2.Android Bitmap优化
+https://juejin.cn/post/6844903919479422984
+
+BitmapRegionDecoder

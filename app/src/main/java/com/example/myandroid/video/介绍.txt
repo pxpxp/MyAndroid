@@ -1,0 +1,34 @@
+1.study1    灰色飘零-博客园
+    Android 贴心的音视频学习指南来咯！
+    https://mp.weixin.qq.com/s/H7EgJhRZDrZuQgL-ZxYHFA
+    https://mp.weixin.qq.com/s/9TzsJn6SDWkJA3XFxsJHwg
+        Android 音视频开发(一) : 通过三种方式绘制图片
+        https://www.cnblogs.com/renhui/p/7456956.html
+
+        Android 音视频开发(二)：使用 AudioRecord 采集音频PCM并保存到文件
+        https://www.cnblogs.com/renhui/p/7457321.html
+
+        Android 音视频开发(三)：使用 AudioTrack 播放PCM音频
+        https://www.cnblogs.com/renhui/p/7463287.html
+
+        Android 音视频开发(四)：使用 Camera API 采集视频数据
+        https://www.cnblogs.com/renhui/p/7472778.html
+
+        Android 音视频开发(五)：使用 MediaExtractor 和 MediaMuxer API 解析和封装 mp4 文件
+        https://www.cnblogs.com/renhui/p/7474096.html
+
+        Android 音视频开发(六)： MediaCodec API 详解
+        https://www.cnblogs.com/renhui/p/7478527.html
+
+        Android 音视频开发(七)： 音视频录制流程总结
+        https://www.cnblogs.com/renhui/p/7520690.html
+----------------------------------------------------------------------------------------------------------------------------------
+关键帧
+
+
+音视频实战经验
+https://mp.weixin.qq.com/mp/appmsgalbum?__biz=MjM5MTkxOTQyMQ==&action=getalbum&album_id=2528295072505987073&scene=126#wechat_redirect
+
+
+关键帧知乎
+https://zhuanlan.zhihu.com/p/616380086

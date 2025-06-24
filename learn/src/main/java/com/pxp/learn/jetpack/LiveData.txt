@@ -1,0 +1,331 @@
+https://mp.weixin.qq.com/s/zW6X1CTnjdb3NX-d7nr6cw
+/* LiveData的通信原理 */
+LiveData的核心主要在于这两步，liveData.observe()以及liveData.postValue()，一个是注册观察者，一个是发送通知。那么下面的解析就将这两个函数作为切入点。
+
+1.LiveData.observe()
+    observe方法传有两个参数LifecycleOwner和Observer，LifecycleOwner是一个具有Android生命周期的类，一般传入的是Activity和Fragment，
+    Observer是一个接口，内部存在void onChanged(T t)方法。
+    ```
+     private SafeIterableMap<Observer<? super T>, ObserverWrapper> mObservers =
+                new SafeIterableMap<>();
+     ......
+
+     @MainThread
+     public void observe(@NonNull LifecycleOwner owner, @NonNull Observer<? super T> observer) {
+         //断言主线程
+         assertMainThread("observe");
+         //当组件生命周期已经Destroy了，也就没有必要再继续走下去，则直接return
+         if (owner.getLifecycle().getCurrentState() == DESTROYED) {
+             // ignore
+             return;
+         }
+         //首先以LifecycleOwner和Observer作为参数创建了一个LifecycleBoundObserver对象，
+         //接着以Observer为key，新创建的LifecycleBoundObserver为value，存储到mObservers这个map中。
+         //从源码可以看到，LifecycleBoundObserver继承ObserverWrapper并且实现了LifecycleEventObserver的接口，
+         //LifecycleEventObserver是监听组件生命周期更改并将其分派给接收方的一个接口，而在LifecycleBoundObserver的构造函数中将observer传给了父类ObserverWrapper。
+         //LifecycleBoundObserver其实只是包裹着LifecycleOwner和Observer的一个类，其中的实现有点代理模式的味道。
+         LifecycleBoundObserver wrapper = new LifecycleBoundObserver(owner, observer);
+         ObserverWrapper existing = mObservers.putIfAbsent(observer, wrapper);
+
+         if (existing != null && !existing.isAttachedTo(owner)) {
+             throw new IllegalArgumentException("Cannot add the same observer"
+                     + " with different lifecycles");
+         }
+         if (existing != null) {
+             return;
+         }
+         //将新创建的LifecycleBoundObserver添加到Lifecycle中，也就是说这个时候观察者注册成功，
+         //当LifecycleOwner也就是组件的状态发生改变时，也会通知到所匹配的observer。
+         //注意这里会导致粘性事件，后面分析
+         owner.getLifecycle().addObserver(wrapper);
+     }
+    ```
+
+    LifecycleBoundObserver
+    LifecycleBoundObserver继承ObserverWrapper并且实现了LifecycleEventObserver的接口
+    在后面LiveData postValue中会遍历出该map的value值ObserverWrapper，获取组件生命周期的状态，以此状态来决定分不分发通知。（这部分详情见“第二小节postValue()”）
+    那LifecycleBoundObserver是什么？
+    ```
+    class LifecycleBoundObserver extends ObserverWrapper implements LifecycleEventObserver {
+        @NonNull
+        final LifecycleOwner mOwner;
+
+        LifecycleBoundObserver(@NonNull LifecycleOwner owner, Observer<? super T> observer) {
+            super(observer);
+            mOwner = owner;
+        }
+
+        .......
+    }
+    ```
+    到这里，UI层viewModel.liveData.observe(this, object:Observer<String> { override fun onChanged(value: String) {} })注册观察者的内部解析也就大致清楚了。
+
+2.postValue()
+    liveData.postValue()是作为一个发射方来通知数据改变，其内部又做了哪些工作？接下来就一探究竟。直接从postValue中最核心的部分在于将参数value赋值给了一个全局变量源码开始：
+    ```
+    protected void postValue(T value) {
+        boolean postTask;
+        //首先将参数value赋值给了一个全局变量mPendingData，它的初始值为一个空对象，
+        //而mPendingData只是作为一个中间媒介来存储value的值，在后续的操作中会用到，我们就暂时先记住它。
+        synchronized (mDataLock) {
+            postTask = mPendingData == NOT_SET;
+            mPendingData = value;
+        }
+        if (!postTask) {
+            return;
+        }
+        //ArchTaskExecutor.getInstance()这里用了单例
+        //在最后就是一个将线程切换到主线程的操作，主要看mPostValueRunnable的实现：
+        ArchTaskExecutor.getInstance().postToMainThread(mPostValueRunnable);
+    }
+    ```
+    ArchTaskExecutor
+    ```
+    private final Runnable mPostValueRunnable = new Runnable() {
+        @SuppressWarnings("unchecked")
+        @Override
+        public void run() {
+            Object newValue;
+            synchronized (mDataLock) {
+                //在Runnable中,mPendingData赋值给了临时变量newValue，最后调用了setValue（）方法。我们都知道LiveData发送通知可以使用PostValue或者SetValue，
+                //而他两的区别就在于，PostValue可以在任意线程中调用，而SetValue只能在主线程中，因为PostValue多了一步上面切换主线程的操作。
+                newValue = mPendingData;
+                mPendingData = NOT_SET;
+            }
+            setValue((T) newValue);
+        }
+    }
+    ```
+
+    OK，接下来就是PostValue/SetValue最核心的部分。
+    ```
+    @MainThread
+    protected void setValue(T value) {
+        //在setValue中，参数value将值赋给了一个全局变量mData，而这个mData最后将通过mObserver.onChanged((T) mData);
+        //将需要修改的value值分发给了UI。最后调用传入一个null调用dispatchingValue方法。
+        assertMainThread("setValue");
+        mVersion++;         //mVersion  初始值是-1
+        mData = value;      //把值给mData
+        //注意参数
+        dispatchingValue(null);
+    }
+    .......
+
+    void dispatchingValue(@Nullable ObserverWrapper initiator) {
+        if (mDispatchingValue) {            //是否正在分发
+            mDispatchInvalidated = true;    //Invalidated   无效的
+            return;
+        }
+        mDispatchingValue = true;
+        do {
+            mDispatchInvalidated = false;
+            if (initiator != null) {
+                considerNotify(initiator);
+                initiator = null;
+            } else {
+                //由于dispatchingValue里的参数为null，
+                //else一进入就是迭代器在遍历mObservers，而mObservers在第一小节“1.LiveData.observe()”中说得很清楚，它作为一个map，
+                //存储了Observer和ObserverWrapper。通过遍历，将每个观察者所匹配的ObserverWrapper作为参数传给了considerNotify()方法。
+                //
+                for (Iterator<Map.Entry<Observer<? super T>, ObserverWrapper>> iterator =
+                        mObservers.iteratorWithAdditions(); iterator.hasNext(); ) {
+                    considerNotify(iterator.next().getValue());
+                    if (mDispatchInvalidated) {
+                        break;
+                    }
+                }
+            }
+        } while (mDispatchInvalidated);
+        mDispatchingValue = false;
+    }
+    ```
+
+    ```
+    private void considerNotify(ObserverWrapper observer) {
+        if (!observer.mActive) {    //这里当前状态是否存活，会在activeStateChanged进行赋值
+            return;
+        }
+        // Check latest state b4 dispatch. Maybe it changed state but we didn't get the event yet.
+        //
+        // we still first check observer.active to keep it as the entrance for events. So even if
+        // the observer moved to an active state, if we've not received that event, we better not
+        // notify for a more predictable notification order.
+        if (!observer.shouldBeActive()) {
+            observer.activeStateChanged(false);
+            return;
+        }
+        if (observer.mLastVersion >= mVersion) {
+            return;
+        }
+        observer.mLastVersion = mVersion;
+        //是不是很熟悉，这就是UI层一开始就实现的接口，而就在这找到了最后的发送方。
+        observer.mObserver.onChanged((T) mData);    //setValue时 mData = value;
+    }
+    ```
+
+小结
+    LiveData是如何通信的？就一句话，UI层注册好一个observer，就存储到一个存储着观察者的map中，
+    直到开发者调用postValue/setValue则遍历该map，分发出observer的onChanged通知，在此过程中，
+    都会监听组件的生命周期，并以此来判断所匹配的组件是否处于活动状态，否则直接return。
+
+/* LiveData的粘性事件 */
+    发送消息事件早于注册事件，依然能够接收到消息的通知的为粘性事件
+
+    即先调用LiveData的postValue/setValue方法，后注册observe，依然能够收到onChange()的通知。
+    从上面的分析可以知道，LiveData最后postValue是将通知分发给已经注册好的观察者，而LiveData的粘性事件是先发送后注册，那为什么也能够收到通知呢？是哪里分发了onChange()?
+    我们知道粘性事件是注册后就收到了通知，那么就可以以liveData.observe()为切入点，看看源码中的实现。
+    ```
+     @MainThread
+     public void observe(@NonNull LifecycleOwner owner, @NonNull Observer<? super T> observer) {
+        ......
+        owner.getLifecycle().addObserver(wrapper);
+     }
+    ```
+    LiveData注册观察者，最核心在于owner.getLifecycle().addObserver(wrapper);
+    addObserver是用来添加一个LifecycleObserver，当LifecycleOwner改变状态时，它会被通知。
+    例如，如果LifecycleOwner处于State#STARTED状态，给定的观察者将收到Event#ON_CREATE、Event#ON_START事件。
+    而我们跟踪到它的实现类里面，
+    ```
+    public class LifecycleRegistry extends Lifecycle {
+        ......
+        @Override
+        public void addObserver(@NonNull LifecycleObserver observer) {
+            State initialState = mState == DESTROYED ? DESTROYED : INITIALIZED;
+            ObserverWithState statefulObserver = new ObserverWithState(observer, initialState);
+            ObserverWithState previous = mObserverMap.putIfAbsent(observer, statefulObserver);
+
+            if (previous != null) {
+                return;
+            }
+            LifecycleOwner lifecycleOwner = mLifecycleOwner.get();
+            if (lifecycleOwner == null) {
+                // it is null we should be destroyed. Fallback quickly
+                return;
+            }
+
+            boolean isReentrance = mAddingObserverCounter != 0 || mHandlingEvent;
+            State targetState = calculateTargetState(observer);
+            mAddingObserverCounter++;
+            while ((statefulObserver.mState.compareTo(targetState) < 0
+                    && mObserverMap.contains(observer))) {
+                pushParentState(statefulObserver.mState);
+                ✅ 切入点
+                statefulObserver.dispatchEvent(lifecycleOwner, upEvent(statefulObserver.mState));
+                popParentState();
+                // mState / subling may have been changed recalculate
+                targetState = calculateTargetState(observer);
+            }
+           ......
+        }
+    }
+    ```
+    statefulObserver.dispatchEvent(lifecycleOwner, upEvent(statefulObserver.mState))，
+    dispatchEvent表示将ON_CREATE、ON_START等事件分发给观察者，以达到监听生命周期的作用。
+    在dispatchEvent方法中，LifecycleEventObserver通过onStateChanged接口分发给了相应的观察者，如下：
+    ```
+    void dispatchEvent(LifecycleOwner owner, Event event) {
+        State newState = getStateAfter(event);
+        mState = min(mState, newState);
+        ✅ 切入点
+        mLifecycleObserver.onStateChanged(owner, event);
+        mState = newState;
+    }
+    ```
+    看到mLifecycleObserver.onStateChanged(owner, event)是不是有种熟悉的感觉，
+    其实在第二节源码分析中，类LifecycleBoundObserver就实现了LifecycleEventObserver接口，并重写了onStateChanged方法。
+    ```
+    class LifecycleBoundObserver extends ObserverWrapper implements LifecycleEventObserver {
+        @NonNull
+        final LifecycleOwner mOwner;
+
+        LifecycleBoundObserver(@NonNull LifecycleOwner owner, Observer<? super T> observer) {
+            super(observer);
+            mOwner = owner;
+        }
+
+     ,,,,,,
+
+        @Override
+        public void onStateChanged(LifecycleOwner source, Lifecycle.Event event) {
+            if (mOwner.getLifecycle().getCurrentState() == DESTROYED) {
+                removeObserver(mObserver);
+                return;
+            }
+            ✅ 切入点
+            activeStateChanged(shouldBeActive());
+        }
+
+     ......
+    }
+    ```
+    如果当前生命周期状态处于DESTROYED，则将观察者从列表中移除，防止内存泄漏，接着就调用了activeStateChanged方法。
+    ```
+    void activeStateChanged(boolean newActive) {
+        if (newActive == mActive) {
+            return;
+        }
+        // immediately set active state, so we'd never dispatch anything to inactive
+        // owner
+        mActive = newActive;
+        boolean wasInactive = LiveData.this.mActiveCount == 0;
+        LiveData.this.mActiveCount += mActive ? 1 : -1;
+        if (wasInactive && mActive) {
+            onActive();
+        }
+        if (LiveData.this.mActiveCount == 0 && !mActive) {
+            onInactive();
+        }
+        ✅ 切入点
+        if (mActive) {
+            dispatchingValue(this);
+        }
+    }
+    ```
+    在 ✅ 切入点之前代码不需要多看，只是一些判断当前活动是否活跃的一起逻辑，核心在于dispatchingValue(this)，
+    看到这个方法，是不是又感觉到一丝熟悉，如果看了第二节的分析，就会发现第二节setValue()中也调用了一句dispatchingValue(null)，
+    只不过setValue传入的是null,而现在这里传入了一个this值。接下来就来看看传入参数和null有什么不同？
+    ```
+    void dispatchingValue(@Nullable ObserverWrapper initiator) {
+        ......
+        do {
+            mDispatchInvalidated = false;
+            if (initiator != null) {
+                ✅切入点1
+                considerNotify(initiator);
+                initiator = null;
+            } else {
+                for (Iterator<Map.Entry<Observer<? super T>, ObserverWrapper>> iterator =
+                        mObservers.iteratorWithAdditions(); iterator.hasNext(); ) {
+                    considerNotify(iterator.next().getValue());
+                    if (mDispatchInvalidated) {
+                        break;
+                    }
+                }
+            }
+        } while (mDispatchInvalidated);
+        mDispatchingValue = false;
+    }
+    ```
+    因为dispatchingValue传入的参数不为null，则逻辑就走进了 ✅切入点1中，接着将initiator作为参数，调用了considerNotify方法，
+    这个其实和setValue最后调用的方法是一致的，只是传入的参数不同罢了。considerNotify方法中最后将数据发送给了观察者。
+    ```
+    private void considerNotify(ObserverWrapper observer) {
+        ......
+        observer.mObserver.onChanged((T) mData);
+    }
+    ```
+    到此，整个流程也就梳理完成。
+
+
+    小结
+    LiveData的粘性事件，在于LiveData只要在注册观察者时，就会触发LifecycleOwner的状态改变，
+    并且会将ON_CREATE,ON_START,ON_RESUME三种状态分发给观察者，而这，就触发了onChange的通知。
+
+
+/* 关于LiveData粘性事件所带来问题的解决方案 */
+    https://www.jianshu.com/p/d0244c4c7cc9
+    方法一：反射干涉Version
+    方法二：使用 SingleLiveEvent
+    方法三：使用事件包装器
+    方法四：UnPeekLiveData
+

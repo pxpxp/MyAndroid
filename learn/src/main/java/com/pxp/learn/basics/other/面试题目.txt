@@ -1,0 +1,13 @@
+1.Android中实现数据存储有多少种
+      1、SharedPreferences存储数据
+        特点：以XML格式将数据存储到设备。
+        优点：简单、方便、轻量级、易理解。
+        缺点：适用于存储少量的数据，并且数据的格式只能是基本的数据类型（int、float、long、boolean）、字符串类型（string），无法进行条件查询等操作。
+        SharedPreferences是一个轻量级的存储类，特别适合用于保存软件配置参数，其背后是用xml文件存放数据，文件存放在/data/data//shared_prefs目录下。
+      2、文件存储数据
+      3、SQLite数据库存储数据
+      4、ContentProvider存储数据
+      5、网络存储数据
+
+2.为什么onCreate和onResume中获取不到view的宽高？为什么View.post为什么可以获取View宽高？
+    https://juejin.cn/post/7202231477253095479

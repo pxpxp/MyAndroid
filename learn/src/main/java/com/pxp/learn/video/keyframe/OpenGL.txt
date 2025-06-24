@@ -1,0 +1,84 @@
+1、图形渲染方案
+    提到移动设备的图形渲染，我们经常会听到 OpenGL、OpenGL ES、Metal、Vulkan 等方案，它们有什么差别呢？
+
+    OpenGL 是一套跨语言、跨平台，支持 2D、3D 图形渲染接口。这套接口由一系列的函数组成，定义了如何对简单及复杂的图形进行绘制。这套接口涉及到对设备的图像硬件进行调用，因此在不同的平台基于这套统一接口做了对应的实现。
+    OpenGL ES 是 OpenGL 的子集，是针对手机和游戏主机等嵌入式设备而设计，去除了许多不必要和性能较低的 API 接口。
+    Metal 是苹果为了解决 3D 渲染性能问题而推出的框架，该技术将 3D 图形渲染性能提高了 10 倍。
+    Vulkan 是一套新的跨平台支持 2D、3D 图形渲染的接口。Vulkan 针对全平台即时 3D 程序（如电子游戏和交互媒体）设计，并提供高性能与更均衡的 CPU/GPU 使用。
+
+2、OpenGL 的角色
+    在日常开发中，开发者一般通过使用上层 API 来构建和绘制界面，而调用 API 时系统最终还是通过 OpenGL/Metal/Vulkan 来实现视图的渲染。开发者也可以直接使用 OpenGL/Metal/Vulkan 来驱动 GPU 芯⽚⾼效渲染图形图像以满足一些特殊的需求。
+
+3、OpenGL 的渲染架构
+    OpenGL 的渲染架构是 Client/Server 模式：Client（客户端）指的是我们在 CPU 上运行的一些代码，比如我们会编写 OC/C++/Java 代码调用 OpenGL 的一些 API；而 Server（服务端）则对应的是图形渲染管线，会调用 GPU 芯片。我们开发的过程就是不断用 Client 通过 OpenGL 提供的通道去向 Server 端传输渲染指令，来间接的操作 GPU 芯片。
+
+    渲染架构的 Client 和 Server 是怎么通信和交互的呢？这又涉及到 C/S 通道的设计，下面我们来接着介绍，不过这里会提到一些你可能不太熟悉的名词，可以先不用深究，有个印象就可以了。
+
+    OpenGL 提供了 3 个通道来让我们从 Client 向 Server 中的顶点着色器（Vertex Shader）和片元着色器（Fragment Shader）传递参数和渲染信息，如下图所示：
+        这 3 个通道分别是：
+        Attribute（属性通道）：通常用来传递经常可变参数。比如颜色数据、顶点数据、纹理坐标、光照法线这些变量。
+        Uniform（统一变量通道）：通常用来传递不变的参数。比如变化矩阵。一个图形做旋转的时候，实质上是这个图形的所有顶点都做相应的变化，而这个变化的矩阵就是一个常量，可以用 Uniform 通道传递参数到顶点着色器的一个实例。再比如视频的颜色空间通常用 YUV，但是 YUV 颜色空间想要正常渲染到屏幕上面，需要转化成 RGBA 颜色空间，这个转换就需要把 YUV 的颜色值乘以一个转换矩阵转换为 RGBA 颜色值，这个转换矩阵也是一个常量，可以用 Uniform 通道传递参数到片元着色器的一个实例。
+        Texture Data（纹理通道）：专门用来传递纹理数据的通道。
+        需要注意的是，这 3 个通道中 Uniform 通道和 Texture Data 通道都可以直接向顶点着色器和片元着色器传递参数，但是 Attribute 只能向顶点着色器传递参数，因为 OpenGL 架构在最初设计的时候，Attribute 属性通道就是顶点着色器的专用通道。片元着色器中是不可能有 Attribute 的，但是我们可以使用 GLSL 代码，通过顶点着色器把 Attribute 信息间接传递到片元着色器中。
+
+        另外，虽然 Texture Data 通道能直接向顶点着色器传递纹理数据，但是向顶点着色器传递纹理数据本身是没有实质作用的，因为顶点着色器并不处理太多关于纹理的计算，纹理更多是在片元着色器中进行计算。
+
+4、OpenGL 状态机
+
+5、图形渲染管线
+    OpenGL 渲染管线的几个重要工序：
+        1）顶点着色器（Vertex Shader）
+        2）图元装配
+        3）光栅化
+        4）片段着色器（Fragment Shader）
+        5）测试和混合
+
+6、EGL
+    EGL 是 OpenGL ES 与设备的桥梁，以实现让 OpenGL ES 能够在当前设备上进行绘制。
+
+    6.1、Android EGL
+        Display 是对实际显示设备的抽象。在 Android 上的实现类是 EGLDisplay。
+        Surface 是对用来存储图像的内存区域 FrameBuffer 的抽象，包括 Color Buffer、Stencil Buffer、Depth Buffer。在 Android 上的实现类是 EGLSurface。
+        Context 存储 OpenGL ES 绘图的一些状态信息。在 Android 上的实现类是 EGLContext。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

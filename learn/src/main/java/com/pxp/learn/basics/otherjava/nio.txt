@@ -1,0 +1,33 @@
+1.一文搞懂ByteBuffer使用与原理
+    https://blog.csdn.net/m0_71777195/article/details/129966484
+    数据结构
+        capacity    缓存区的容量. 该值不允许负值，也不允许修改
+        opsition    下一个可读或可写的位置
+        limit   缓存区里第一个不能读或不能写的位置，该值不会是负值，同时也不会大于capacity
+        mark    标志位，mark会标记一个索引，在Buffer#reset调用时，将position重置为mark。mark不是必须的，但是当定义mark后，其最小为0，最大为position
+                mark还有如下两点说明
+                    position或limit一旦小于mark则mark会被丢弃；
+                    没有定义mark时如果调用了Buffer#reset则会抛出InvalidMarkException。
+        几个字段的关系 mark <=position <=limit <=capacity
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

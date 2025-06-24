@@ -1,0 +1,48 @@
+
+
+1.Effect
+    SideEffect：用于简单的副作用，如日志记录。
+    LaunchedEffect：用于在 Composition 中启动和管理协程，适合异步操作。
+    DisposableEffect：用于在 Composition 生命周期内处理需要清理的副作用。
+
+2.CompositionLocalProvider
+    CompositionLocalProvider 是 Jetpack Compose 中用于在局部范围内提供数据的工具。它允许你定义和传递局部数据，而不需要通过参数一级一级地传递。
+    这种机制类似于 React 中的 Context API，但在 Jetpack Compose 中使用的是 CompositionLocal。
+
+3.currentComposer
+    currentComposer 是一个重要的内部属性，它提供了对当前 Composer 实例的访问。Composer 是 Compose 框架内部用于管理组合过程的核心类，
+    负责跟踪和处理 Compose 的 UI 树。
+
+4.Compose编程思想 - layz4android(掘进)
+    https://juejin.cn/column/7350924101941018650
+
+
+
+
+
+地址：
+    (1,2,3)
+    作者：麦客奥德彪
+    解读Compose的项目中的知识点
+    链接：https://juejin.cn/post/7377439806135795764
+
+    ComposeLearning
+    https://github.com/soloong/ComposeLearning
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

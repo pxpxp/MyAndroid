@@ -1,0 +1,83 @@
+Android 14      SDK API level 34
+    https://mp.weixin.qq.com/s/ujUwuW2qSwUi64OZ3kmXSg
+    ScreenShot Detection，截屏感知
+    TextView Highlight，文本高亮
+    New System Back Design，全新的系统返回设计
+    Custom Action on Share Sheet，支持自定义操作的系统分享
+    Locale Preferences，区域偏好
+    Grammar Gender，语法性别
+    Path Iterator，路径迭代器
+    Package Installer improvement，安装改善
+
+Android 13      SDK API level 33
+    https://mp.weixin.qq.com/s/9Poecs78JKaOc03MnHMCUQ
+    通知的运行时权限
+    剪切板预览功能,剪切板脱敏
+    附近 WIFI 设备新权限
+    细化媒体权限
+        媒体类型        请求权限
+        图片和照片      READ_MEDIA_IMAGES
+        视频	          READ_MEDIA_VIDEO
+        音频文件	      READ_MEDIA_AUDIO
+    后台使用身体传感器的新权限   BODY_SENSORS_BACKGROUND
+
+Android 12L     SDK API level 32
+Android 12      SDK API level 31
+    https://mp.weixin.qq.com/s/CEsb7BmhNJ8mbqX4FjVS1A
+    安全组件输出，exported
+        在target到Android12之后，所有设置了intent filters的activity、services、broadcast receivers都需要设置 android:exported ，否则会导致编译异常。
+
+    PendingIntent mutability
+        在target到Android12之后，endingIntent创建需要指定可变性FLAG_IMMUTABLE 或者 FLAG_MUTABLE
+
+    传感器刷新频率问题
+        当使用SensorManager时，如果监听的频率太快，例如sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_FASTEST);，且没有定义permission HIGH_SAMPLING_RATE_SENSORS权限的话会有这个崩溃。
+        大部分情况下我们并不需要太快的监听频率，可以设置成SensorManager.SENSOR_DELAY_UI。在某些确实需要快速频率监听的话，需要加上HIGH_SAMPLING_RATE_SENSORS权限。
+
+    webview访问文件
+    Package可见性
+    后台启动前台服务
+        应用在target到Android12之后，如果应用在后台启用前台服务，那么就会报ForegroundServiceStartNotAllowedException。
+        解决办法：1. 使用WorkManager来处理后台任务。2. 避免在后台启动前台服务。
+    蓝牙权限
+        在target到Android12之后，查找蓝牙设备需要添加 BLUETOOTH_SCAN 权限，与匹配的蓝牙设备传输数据需要获取BLUETOOTH_CONNECT 权限。
+
+    https://mp.weixin.qq.com/s/rA-1f8aa4PzjFuD6EIA7jw
+    1. 应用启动画面
+    2. 待处理 intent 可变性
+        Android 12为目标平台的App，在构建PendingIntent时，需要指定Flag为FLAG_IMMUTABLE(建议)或FLAG_MUTABLE二者之一，否则App将崩溃并出现以下警告。
+    3. 前台服务启动限制
+    4. 精确的闹钟权限  SCHEDULE_EXACT_ALARM
+
+
+
+Android 11      SDK API level 30
+Android 10      SDK API level 29
+Android 9       SDK API level 28
+Android 8.1     SDK API level 27
+Android 8.0     SDK API level 26
+Android 7.1.1   SDK API level 25
+Android 7.0     SDK API level 24
+Android 6.0     SDK API level 23
+Android 5.1     SDK API level 22
+Android 5.0     SDK API level 21
+Android 4.4w    SDK API level 20
+Android 4.4     SDK API level 19
+Android 4.3     SDK API level 18
+Android 4.2     SDK API level 17
+Android 4.1     SDK API level 16
+Android 4.0.3   SDK API level 15
+Android 4.0     SDK API level 14
+Android 3.2     SDK API level 13
+Android 3.1     SDK API level 12
+Android 3.0     SDK API level 11
+Android 2.3.3   SDK API level 10
+Android 2.3     SDK API level 9
+Android 2.2     SDK API level 8
+Android 2.1     SDK API level 7
+Android 2.0.1   SDK API level 6
+Android 2.0     SDK API level 5
+Android 1.6     SDK API level 4
+Android 1.5     SDK API level 3
+Android 1.1     SDK API level 2
+Android 1.0     SDK API level 1

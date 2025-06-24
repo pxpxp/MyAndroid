@@ -1,0 +1,36 @@
+1.Activity的五种启动模式
+https://mp.weixin.qq.com/s/uiAOYOQu7ZM3jrPYuv6cPg
+
+但在 Android12（ S 31）之后的版本则修改为了五种启动模式
+
+标准模式——standard
+Activity 默认就是此启动模式。每启动一次 Activity，就会创建一个新 Activity 实例并置于栈顶。谁启动了这个 Activity，那么这个 Activity 就运行在启动它的那个 Activity 所在的栈中。其实后面这句话挺重要
+Android 12 以前，当我们处于 Root Activity 时，点击返回键时，应用返回桌面， Activity 执行 onDestroy，程序结束。Android 12 起同样场景下 Activity 只会 onStop，不再执行 onDestroy。
+
+栈顶模式——singleTop
+栈顶模式其实很好理解，如果栈顶存在该activity的实例，则复用，不存在新建放入栈顶，它的表现几乎和 上面刚说的标准模式一模一样，栈顶模式的 Activity 实例可以无限多，唯一的区别是如果在栈顶已经有一个相同类型的 Activity 实例，那么 Intent 则不会再去创建一个 Activity，而是通过 onNewIntent() 发送到现有的Activity。
+
+栈内复用——singleTask
+栈内复用模式会将该实例上边的 Activity 全部出栈，将该实例置于栈顶，这也就是出现文章开头我说的那个问题的根本原因。
+
+单例模式——singleInstance
+单例模式，顾名思义，就是新开一个任务栈，该栈内只存放当前实例。比如说项目中语音通话功能，来电显示页面采用的就可以采用单例模式进行处理。
+
+
+当然还有别的方法来新开任务栈，比如说启动 Activity 的时候加上 FLAG_ACTIVITY_NEW_TASK ，也会开启一个新的任务栈。
+这里需要注意，即使将 Activity 的启动模式设置为单例模式或者添加了 flag，也不会出现像上面某信那种效果，因为 Activity 的 taskAffinity 是一样的，但如果将 Activity 的 taskAffinity 修改下，就可以出现类似于上面某信的效果
+
+单例任务模式——singleInstancePerTask
+其实这个单例任务模式是我自己编的😂，这个和上面所说的单例模式基本一致，只不过会为启动的 Activity 新建任务栈，而不需要像上面说的单例模式那样修改 taskAffinity。
+
+2.面试官装x失败之：Activity的启动模式
+https://mp.weixin.qq.com/s/IDRVldIn5-tofbr9ihwrUA
+
+首先看一下 Activity 常见的四种启动模式及大众理解，这也是面试时最常问的：
+standard：标准启动模式（默认启动模式），每次都会启动一个新的 activity 实例；
+singleTop：单独使用使用这种模式时，如果 Activity 实例位于当前任务栈顶，就重用栈顶实例，而不新建，并回调该实例 onNewIntent() 方法，否则走新建流程；
+singleTask：这种模式启动的 Activity 只会存在相应的 Activity 的 taskAffinit 任务栈中，同一时刻系统中只会存在一个实例，已存在的实例被再次启动时，会重新唤起该实例，并清理当前 Task 任务栈该实例之上的所有 Activity，同时回调 onNewIntent() 方法；
+singleInstance：这种模式启动的 Activity 独自占用一个 Task 任务栈，同一时刻系统中只会存在一个实例，已存在的实例被再次启动时，只会唤起原实例，并回调 onNewIntent() 方法；
+需要说明的是：上面的场景仅仅适用于 Activity 启动 Activity，并且采用的都是默认 Intent，没有额外添加任何 Flag，否则表现就可能跟上面的完全不一致。
+
+尤其要注意的是 FLAG_ACTIVITY_NEW_TASK 的使用，后面从源码中看，依靠 FLAG_ACTIVITY_NEW_TASK 其实可以分为两派。

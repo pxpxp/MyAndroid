@@ -1,0 +1,2 @@
+1.给Android工程师的音视频教程之一文弄懂MediaCodec
+    https://blog.csdn.net/u012124438/article/details/123024534

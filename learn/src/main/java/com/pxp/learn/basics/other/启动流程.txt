@@ -1,0 +1,141 @@
+1.Android 系统启动流程
+https://juejin.cn/post/6844903929369608206
+
+2.Android App启动过程
+https://juejin.cn/post/6844903933802987528
+首先是点击App图标，此时是运行在Launcher进程,通过ActivityManagerServiceBinder IPC的形式向system_server进程发起startActivity的请求
+system_server进程接收到请求后，通过Process.start方法向zygote进程发送创建进程的请求
+zygote进程fork出新的子进程，即App进程
+然后进入ActivityThread.main方法中，这时运行在App进程中，通过ActivityManagerServiceBinder IPC的形式向system_server进程发起attachApplication请求
+system_server接收到请求后，进行一些列准备工作后，再通过Binder IPC向App进程发送scheduleLaunchActivity请求
+App进程binder线程（ApplicationThread）收到请求后，通过Handler向主线程发送LAUNCH_ACTIVITY消息
+主线程收到Message后，通过反射机制创建目标Activity，并回调Activity的onCreate
+
+3.Android Service 启动流程
+https://juejin.cn/post/6844903989373468679
+整个StartService过程，从进程的角度看Service的启动流程
+
+ProcessA进程采用Binder形式向syster_server进程发起startService请求
+syster_server进程收到请求后，向zygote进程发送创建进程的请求
+zygote进程fork出新的进程,进出新进程的ActivityThread的main方法
+新进程通过Binder向syster_server进程发起attachApplication请求
+syster_server进程收到请求后，进过一系列的准备后，通过Binder向新进程发送scheduleCreateService请求
+新进程收到请求后，通过Handler发送CREATE_SERVICE消息
+主线程收到message，创建Service，并回调onCreate
+
+4.Android 广播启动流程
+https://juejin.cn/post/6844903990329606158
+
+5.Android ContentProvider启动流程
+https://juejin.cn/post/6844903992514838541
+首先创建了ContextImpl对象
+然后创建了mInstrumentation对象
+接着创建了Application对象
+然后启动了ContentProvider
+最后调用了Application对象的onCreate
+
+我们发现其实在调用Application的onCreate之前，就已经启动了ContentProvider,这个也可以作为启动优化的一部分，
+如果不需要ContentProvider的话建议删除，因为他会自动启动，之前我用TraceView测试过，大概占用5ms，但是蚊子再小也是肉啊
+
+6.Android UI绘制流程分析
+https://mp.weixin.qq.com/s/3ymNKywDsn1MeEymYgi9eQ
+
+main()方法
+prepareMainLooper()方法初始化Looper
+new了ActivityThread对象，然后调用了attach()方法
+attach()调用了ActivityManager的getService方法去获取一个AMS的代理对象,使用Binder机制去获取这个代理对象,有了它，就等于可以操作到AMS
+得到AMS代理对象后，会调用它的attachApplication()方法,调用AMS的attachApplication方法时，传入了一个参数mAppThread，它就是ApplicationThread，
+现在去看IActivityManager的实现类的attchApplication方法
+从binder中获取到进程信息后，接着调用attachApplicationLocked方法：
+attachApplicationLocked方法：代码很多，但拉到后面可以看到调用了ActivityThread的bindApplication()方法，方法里的有参数appInfo等，这样app相关的信息数据都回传给ActivityThread，那这样就要看该方法的详情：
+把在AMS里回传过来的app应用的信息封装在AppBindData里，然后把它发送出去，也就是调用sendMessage方法，它是mH发送的：
+mH是ActivityThread的内部类H，它也是继承Handler：它里面会有处理BIND_APPLICATION消息的方法：
+先是定义了Application对象app，然后调用makeApplicationInner()方法最后赋值给app，我们来跟踪一下makeApplicationInner()方法：
+继续看makeApplicationInner()方法：
+可以看到调用了mInstrumentation对象的newApplication()方法去构造app对象：
+在这里能看到类加载器，以及app类名传到instantiateApplication()方法：
+没错，最后就是用反射去构造Application对象。
+既然构造好了Application对象，之后肯定是要调用它的onCreate等这些生命周期方法，所以我们接着看handleBindApplication()方法的源码，可以看到：
+还是通过Instrumentation去调用，这里调用了callApplicationOnCreate()方法：
+可以看到，调用了app对象的onCreate方法。
+
+/   Activity的启动   /
+现在我们可以知道Application的启动最关键其实是在于AMS去调用了ActivityThread里的ApplicationThread的bindApplication()方法：
+也就是这个时候把需要启动的App信息都回传到ApplicationThread里，然后再封装在Handler的消息里发送给ActivityThread去调用Instrumentation去构造和启动App。
+所以，启动Activity时也是跟启动App一样的过程，也就是AMS的attachApplicationLocked()方法里调用的，往下看：
+在调用完bindApplication()方法后，紧接着就是调用了mStackSupervisor.attachApplicationLocked()方法，这里的mStackSupervisor，它其实是一个Activity栈来的：
+里面封装了每个Activity的信息，那我们就来看看它调用的方法attachApplicationLocked()方法是怎样的：
+遍历整个Activity栈，调用topRunningActivityLocked()返回栈中最顶部Activity(也就是首个要启动的Activity)，赋值给top，此时这个ActivityRecord类对象top还不是一个真正的Activity类，它只是用来存储该启动的Activity的相关信息。然后它被传进了realStartActivityLocked()方法，看看这个方法的详情：
+它在里面创建了启动Activity事务对象，传了app.thread(也就是ApplicationThread对象)，是用来等下回调用的，紧接着调用addCallback()方法，目的是用该事务对象添加回调接口，传了一个LaunchActivityItem对象进去，接下来肯定就是提交事务对象：
+了解事务机制都知道，既然是提交了事务，那肯定是要有地方去调度（处理）这个提交过来的事务，所以来看这个ClientLifecycleManager的scheduleTransaction()方法：
+里面看到调用了transaction的schedule()方法：
+可以看到了吧，调用的就是ApplicationThread对象的scheduleTransaction()方法，那这个mClient是什么时候赋值的，就是在构造事务对象时传的：
+app.thread对象就是这个时候传进去的。因此看到这里，相信大家都知道AMS在启动Activity时，也是AMS将Activity相关信息回调给ActivityThread的ApplicationThread类，调用它的方法，然后来构造和启动Activity，所以最终Activity类相关的信息回调给了ActivityThread。那我们接下来看看ApplicationThread的scheduleTransaction()方法：
+它里面调用了ActivityThread的scheduleTransaction()方法，其实这里是调用了ActivityThread父类ClientTransactionHandler的scheduleTransaction()方法：
+正如我们讲Application启动时那样，ActivityThread和ApplicationThread通信是使用Handler机制的，所以可以看到scheduleTransaction()方法里发送了EXECUTE_TRANSACTION消息，那么就去看看H类的处理该消息的方法：
+从消息对象里把AMS传过来的Activity类信息封装在事务对象transaction里，然后调用了TransactionExecutor的execute方法，执行了这个事务对象：
+里面看到调用了executeCallbacks()方法：
+可以看到这里是遍历callbacks，然后从它里面取出一个个回调接口类对象ClientTransactionItem，那这个callbacks是什么时候添加这些回调接口类的，其实是在构造事务对象的时候：
+添加的是LaunchActivityItem对象，而LaunchActivityItem是继承ClientTransactionItem：
+所以这时候遍历callbacks，然后从它里面取出一个个回调接口类对象ClientTransactionItem这句代码其实就是父类引用指向子类对象，因此接着往下看：
+调用了item的execute()方法，因此我们现在去看LaunchActivityItem的execute()方法：
+这里可以看到创建了ActivityRecord对象，用于Activity的实例化。另外还有个参数ClientTransactionHandler类，它其实就是ActivityThread，因为别忘了ActivityThread是继承ClientTransactionHandler的，因此现在调用了client的handleLaunchActivity()方法，其实就是调用了ActivityThread的handleLaunchActivity()方法，传进了ActivityClientRecord对象，它封装了由AMS传过来的这个启动Activity类相关信息，用于Activity的实例化。继续看ActivityThread的handleLaunchActivity()方法：
+看到这个performLaunchActivity()方法：
+可以看到activity对象是由Instrumentation对象的newActivity()方法得到：
+意图Intent对象也是这个时候传进来供Instrumentation参考使用，所以如果要改变Activity的启动意图，是不是可以考虑反射这个Intent，至于这里的Intent对象又是哪里赋值的，大家有兴趣可以往回找找看。最终调用了instantiateActivity()方法：
+所以跟创建Application对象一样，也是使用类加载器ClassLoader去反射构造Activity对象。既然现在成功把Activity对象构造出来了，那接下来就是要启动它了：
+我们继续往回看，跟踪Instrumentation对象，可以看到它调用了callActivityOnCreate()方法：
+调用了Activity的performCreate()方法：
+可以看到，最后就是调用了Activity的onCreate()方法。
+
+现在来总结一下整个Application启动和Activity启动的流程：
+从attachApplication方法起，ActivityThread与AMS就进行通信，AMS持有ActivityThread的ApplicationThread引用，而ActivityThread也持有了AMS的代理引用，然后AMS把要启动的Application类相关信息数据都通过调用ApplicationThread的bindApplication()方法回传给ActivityThread那边，然后ApplicationThread拿到这些数据之后就开始跟ActivityThread进行消息通信，然后ActivityThread就通过Instrumentation进行构造Application对象和启动Application的生命周期方法，接着就是启动Activity，过程类似，不同的是多了一个事务机制：
+AMS会创建一个事务对象去把要启动的Activity类相关数据通过事务形式提交给ActivityThread那边，当然也是ApplicationThread去调度处理这个事务，然后又是通过Handler机制把数据封装在消息对象里供ActivityThread提取出来处理，然后ActivityThread通过Instrumentation对象去构造Activity对象和启动Activity生命周期方法。
+
+/   UI绘制流程   /
+当一个Activity启动之后(从onCreate()方法执行)，接下来就是去解析xml布局文件，然后进行测量、布局和绘制的过程，我们现在先来看看当Activity继承Activity的情况，从onCreate()方法里的setContentView()开始看：
+里面调用了window(getWindow()方法获得)的setContentView()的方法，这个window是个抽象类：
+    PhoneWindow的的setContentView()
+    因为当前我们第一次加载布局，肯定mContentParent为空的，所以调用installDecor()方法，初始化顶层布局DecorView，看看installDecor()方法的详情：
+    可以看到，先是构造了mDecor对象，调用了generateDecor()方法：
+    实则就是new了DecorView对象，继续跳出去看setContentView()方法，构造了mDecor对象之后，就是把它传到generateLayout()方法里去，用来初始化mContentParent对象，generateLayout()方法的详情：
+    首先是调用getWindowStyle方法获取窗体样式，然后再根据这些样式去判断要给布局id设置哪个去加载布局，其中我们以这个最常见的布局去分析：
+    当常规的布局id就是设置成R.layout.screen_simple，那我们来看看这个布局是什么样的：
+    现在layoutResource赋值了这个布局，紧接着就是：
+    调用了onResourcesLoaded()方法去加载这个布局，传的参数有LayoutInflater以及layoutResource：
+    没错，就是用LayoutInflater去inflate解析R.layout.screen_simple布局文件，然后将解析出来的布局通过addView()方法添加给root，也就是DecorView：
+    viewStub就是状态栏，然后FrameLayout就是内容布局。再跳回generateLayout()方法，接着往下看：
+    现在mDecor有了，就给它的子级布局contentParent对象给构成出来，用的是一个ID_ANDROID_CONTENT：
+    它其实就是R.layout.screen_simple布局里的FrameLayout：
+
+    那我倒回setContentView()方法看，在把mDecor的子级布局contentParent对象给构造出来后，就可以加载我们开发者自己的布局了：
+    调用inflate()方法，将我们自己的布局id和这个conteParent传进去，记住此时这个conteParent其实就是这个FrameLayout：
+    我们现在就是把自己定义的布局给解析添加到这个FrameLayout里去：
+    把布局文件xml里的节点解析成parser对象后，再传到inflate方法里：
+    看到最后，通过addView()方法把我们的布局添加进mContentParent里去了。
+
+整个过程其实并不复杂，因为它没有很多分支，都是一路看跟着源码方法跟踪分析就好。
+那如果Activity继承的是AppCompatActivity......
+
+测量
+既然现在在Actitivty的onCreate方法里，已经是把我们定义的xml布局文件解析并且添加到我们的contentParent对象里去了，那现在该是将这些组件进行测量、布局以及绘制，最后呈现给用户看。那么这几个过程其实都是在Acitivity的onResume()方法里进行的。
+之前通过分析Activity的启动（onCreate方法）时可以知道，Activity的生命周期方法的调用其实是ActivityThread调用的，所以onResume方法也是在ActivityThread里调用的：
+    ActivityThread的handleResumeActivity()
+    可以看到，从Activity对象里依次获取window对象，然后获取decorView对象(onCreate()方法里解析布局xml得到的)，接着获取windowManager对象，调用它的addView()方法：
+    因为windowManager是抽象类，因此跟踪它的实现类WindowManagerImpl的addView()方法：
+
+    WindowManagerImpl的addView()
+    可以留意到这句root.setView(view, wparams, panelParentView);
+    其实就是把devorView传到setView()方法里去，来看看这个方法：
+
+    ViewRootImpl的setView
+    在里面可以看到调用了requestLayout()方法，这个方法相信大家都不陌生了，我们在自定义控件的时候会调用它来进行重新测量和布局以及绘制的。我们看看它的详情：
+    继续跟踪scheduleTraversals()方法：
+    这里是post了一个线程，mTraversalRunnable，看看它的run方法：
+    run方法里调用了doTraversal()方法：
+    答案就在这个performTraversals()方法里了，继续跟踪performTraversals()方法：
+    代码很多，但往下看，可以看到里面调用了performMeasure()方法：
+    最终就是调用了控件的measure()方法，然后就是遍历父控件里的所有子控件，一个个进行测量。这部分测量的具体分析讲话在下篇系列继续为大家详细讲解。我们往回继续看performTraversals()方法，往下看就是调用了performLayout()方法：
+    没错，这个就是组件的布局方法：
+    遍历父布局里的子控件，然后进行layout()方法。那么控件的绘制方法也是在performTraversals()方法里，继续往下看：
+    如你所见，调用了performDraw()方法，那么现在就可以知道其实我们平常调用的requestLayout()方法的整个流程就是布局的测量、布局与绘制顺序就是分别调用了performLayout()方法、performLayout()方法和performDraw()方法。

@@ -1,0 +1,145 @@
+探索Android开源框架 - 5. EventBus使用及源码解析
+https://mp.weixin.qq.com/s/ZihYJ-9IuechILKIMavh6A
+
+    其他：
+        LightEventBus-轻量高效的事件总线
+        https://mp.weixin.qq.com/s/6QKyDzGQyb2gAMgHhstEnQ
+        EventBus深度解析
+        https://juejin.cn/post/7379831020495749157
+
+定义
+Android事件发布/订阅框架，简化应用程序内组件间，组件与后台线程间的通信；
+
+优点
+代码简洁，使用简单，将事件发布和订阅充分解耦；
+
+五种ThreadMode
+POSTING（默认）
+接收事件方法应执行在发射事件方法所在的线程
+
+MAIN
+接收事件方法应执行在主线程
+
+MAIN_ORDERED
+接收事件方法会被扔进 MessageQueue 中等待执行
+
+BACKGROUND
+发射事件方法在主线程中执行，则接收事件方法应执行在 EventBus 维护的单一子线程 执行
+
+发射事件方法在子线程中执行，则接收事件方法应执行在发射事件方法所在的线程
+
+ASYNC
+接收方法应执行在不同于发射事件方法所在的另一个线程。常用于耗时操作
+
+使用
+添加依赖
+导入依赖包
+
+implementation 'org.greenrobot:eventbus:3.2.0'
+Subscriber Index[可选]
+作者在EventBus 3中引入了EventBusAnnotationProcessor（注解分析生成索引）技术，大大提高了EventBus的运行效率;
+
+1. java
+android {
+    defaultConfig {
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [ eventBusIndex : 'com.example.myapp.MyEventBusIndex' ]
+            }
+        }
+    }
+}
+
+dependencies {
+    def eventbus_version = '3.2.0'
+    implementation "org.greenrobot:eventbus:$eventbus_version"
+    annotationProcessor "org.greenrobot:eventbus-annotation-processor:$eventbus_version"
+}
+2. kotlin
+apply plugin: 'kotlin-kapt' // ensure kapt plugin is applied
+
+dependencies {
+    def eventbus_version = '3.2.0'
+    implementation "org.greenrobot:eventbus:$eventbus_version"
+    kapt "org.greenrobot:eventbus-annotation-processor:$eventbus_version"
+}
+
+kapt {
+    arguments {
+        arg('eventBusIndex', 'com.example.myapp.MyEventBusIndex')
+    }
+}
+此时需要我们先编译一次，生成索引类。编译成功之后，就会发现在\ProjectName\app\build\generated\source\apt\PakageName\下看到通过注解分析生成的索引类，这样我们便可以在初始化EventBus时应用我们生成的索引了
+
+使用
+要应用我们生成好的索引时
+
+val mEventBus = EventBus.builder().addIndex(MyEventBusIndex()).build()
+如果想把自定义的设置应用到EventBus默认的单例中，则可以用installDefaultEventBus()方法
+
+EventBus.builder().addIndex(MyEventBusIndex()).installDefaultEventBus()
+基本使用
+基本使用步骤分为注册，自定义Event，订阅，发布，注销几个步骤，其中自定义Event一般单独提取出来复用，发布一般在其他页面或组件中执行，示例代码如下
+
+class EventBusActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_event_bus)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        //1. 注册
+        EventBus.getDefault().register(this)
+    }
+
+    //2. 自定义Event
+    class MessageEvent(val what: Int)
+
+    //3. 订阅：通过设置不同的ThreadMode来指定订阅者的工作线程
+    @Subscribe(threadMode = ThreadMode.POSTING)
+//    @Subscribe(threadMode = ThreadMode.MAIN)
+//    @Subscribe(threadMode = ThreadMode.MAIN_ORDERED)
+//    @Subscribe(threadMode = ThreadMode.BACKGROUND)
+//    @Subscribe(threadMode = ThreadMode.ASYNC)
+    fun onMessageEvent(event: MessageEvent?) {
+        LjyLogUtil.d("${Thread.currentThread().name}_event.what=${event?.what}")
+    }
+
+    fun onBtnCLick(view: android.view.View) {
+        when (view.id) {
+            R.id.btn_postInMain -> {
+                //4.1 在主线程发布
+                LjyLogUtil.d("${Thread.currentThread().name}_post")
+                EventBus.getDefault().post(MessageEvent(1001))
+            }
+            R.id.btn_postInThread -> {
+                //4.2 在子线程发布
+                Thread {
+                    LjyLogUtil.d("${Thread.currentThread().name}_post")
+                    EventBus.getDefault().post(MessageEvent(1002))
+                }.start()
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        //5. 注销
+        EventBus.getDefault().unregister(this)
+    }
+}
+粘性事件
+订阅者注解开启sticky
+
+@Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
+fun onMessageEventSticky(event: MessageEvent?) {
+    LjyLogUtil.d("${Thread.currentThread().name}_event.what=${event?.what}")
+}
+发布时调用postSticky方法
+
+EventBus.getDefault().postSticky(MessageEvent(1003))
+
+/* 源码分析 */
+
+

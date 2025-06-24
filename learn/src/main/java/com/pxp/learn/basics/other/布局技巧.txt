@@ -1,0 +1,7 @@
+1.layout_constraintDimensionRatio   按照比例显示
+2.layout_constraintHorizontal_chainStyle     ----横向连接显示样式
+  layout_constraintVertical_chainStyle       ----纵向连接显示样式
+        packed:
+        spread:
+        spread_inside:
+

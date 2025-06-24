@@ -1,0 +1,29 @@
+1.Android View系列（一）：View的基础知识
+https://juejin.cn/post/6844903909614419981
+
+2.Android View系列（二）：事件分发机制源码解析
+https://juejin.cn/post/6844903909614419976
+事件分发主要涉及以下几个方法：
+dispatchTouchEvent：用来进行事件的分发，如果事件可以传递到当前View那么此方法一定会被调用，
+                   返回结果受当前View的onTouchEvent和子View的dispatchTouchEvent方法影响，表示是否消耗当前事件
+onInterceptTouchEvent：在上个方法内部调用，用来判断是否拦截事件，如果当前View拦截了事件，
+                    那么在同一时间序列内，此方法不会再次被调用，返回结果表示是否拦截事件
+onTouchEvent:在dispatchTouchEvent方法中调用，用于事件的处理，返回值表示是否消耗事件，如果不消耗当前View无法再次接受到事件
+
+注意点：
+首先会判断与没有mOnTouchListener，如果有并且其中的onTouch方法返回true那么onTouchEvent放方法不会调用，可以看出mOnTouchListener的优先级高于onTouchEvent
+
+3.Android View系列（三）：View的绘制流程
+https://juejin.cn/post/6844903909618614285
+View的绘制流程是从ViewRootImpl的performTraversals方法开始的，他经过measure，layout，draw才能最终将一个View绘制出来，
+    其中measure用来测量View的宽高，layout用来确定View在父容器中的位置，draw负责将View绘制在屏幕上，如图：
+
+performTraversals方法会依次调用，performMeasure，performLayout，performDraw三个方法，这三个方法分别完成顶级View的measure，layout和draw这三大流程
+其中performMeasure方法会调用measure方法，在measure方法中又会调用onMeasure方法，在onMeasure方法中则会对所有的子元素进行measure过程，
+    这个时候measure流程就从父元素传入到了子元素中，这样就完成了一次measure过程，接着子元素会重复父元素的measure过程，这样反复就完成View树的遍历，同理performLayout和performDraw的传递流程和performMeasure是类似的，唯一不同的是preformDraw传递过程是在draw方法中通过dispatchDraw来实现的，本质没有区别
+
+measure过程决定了View的宽高，measure完以后可以通过getMeasuredWidth和getMeasuredHeight来获取测量宽高
+layout过程确定了View的四个顶点和实际的View宽高，完成以后可以通过getTop，getLeft，getRight，getBottom来获取View的四个顶点，
+    并通过getWidth和getHeight获取View的最终宽高
+draw过程则决定了View的显示，只有draw方法完成以后，View的内容才会显示在屏幕上
+

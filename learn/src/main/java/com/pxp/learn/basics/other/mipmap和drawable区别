@@ -1,0 +1,24 @@
+Android中drawable和mipmap到底有什么区别
+https://juejin.cn/post/7179187950050082873
+    mipmap 是一种纹理映射技术，安卓提供这个技术是为了加速图片大小缩放和提高图片质量。
+    安卓中利用 mipmap 技术提前把按照缩小层级的图片存储在内存中。
+    推荐把应用启动图标放在 mipmap 目录。
+    Bitmap 有对应的 API setHasMipmap，mipmap 目录下图片默认开启这个属性。而 drawable 目录下图标这个属性是 false。
+
+每日一问 | mipmap vs drawable，傻傻分不清楚？
+https://wanandroid.com/wenda/show/17666
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

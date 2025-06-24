@@ -1,0 +1,118 @@
+
+
+
+
+4.原创：写给初学者的Jetpack Compose教程，使用State让界面动起来
+    State是一种基于观察者机制的组件，它的用法和LiveData类似，因此非常的简单易懂。
+    State可以让Compose感知到界面上有状态发生了变化，从而对界面上相关联的Composable函数进行重组。
+    不仅如此，State还可以让Compose能够精准只更新那些状态有变化的控件，而那些状态没有变化的控件在重组的时候则会跳过执行。
+
+    remember和mutableStateOf在Composable函数中几乎永远都是配套使用的。
+
+    rememberSaveable函数是remember函数的一个增强版，它唯一和remember不同的地方就是在于其包裹的数据在手机横竖屏旋转时会被保留下来。
+
+    State hoisting，中文译作状态提升。
+    也就是说，我们要尽可能地把State提到更上一层的Composable函数当中，这样偏底层的Composable函数就可以成为无状态的函数，从而提高它们的复用性。
+    而实现状态提升最核心的步骤只有两个。
+    第一就是将原来声明State对象的写法改成用参数传递的写法，就像上面的示例一样。
+    第二就是将写入State数据的地方改成用回调的方式来通知到上一层。
+    1. 如果有多个Composable函数需要读取同一个State对象，那么至少要将State提升到这些Composable函数共有的父级函数当中。
+    2. 如果有多个Composable函数需要对同一个State对象进行写入，那么至少要将State提升到所有执行写入的Composable函数里调用层级最高的那一层。
+    3. 如果某个事件的触发会导致两个或更多的State发生变更，那么这些State都应该提升到相同的层级。
+
+    在Compose中使用ViewModel。
+    传统LiveData的用法在Compose中并不好使，因为传统LiveData依赖于监听某个值的变化，并对相应的界面进行更新，而Compose的界面更新则依赖于重组。
+    因此，我们需要将LiveData转换成State才行，observeAsState()函数就是用来做这个事情的，参数中传入的0表示它的初始值。
+    LiveData
+    val count by viewModel.count.observeAsState(0)  //LiveData转换成State
+    val doubleCount by viewModel.doubleCount.observeAsState(0)
+    StateFlow
+    val count by viewModel.count.collectAsState()
+    val doubleCount by viewModel.doubleCount.collectAsState()
+
+
+5.原创：写给初学者的Jetpack Compose教程，Lazy Layout
+    LazyColumn和LazyRow
+    LazyColumn(contentPadding = PaddingValues(start = 10.dp, end = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        items(list) { item -> }
+        //itemsIndexed(list) { index, item ->
+    }
+
+    rememberLazyListState
+        val state = rememberLazyListState()
+        state.firstVisibleItemIndex
+        state.firstVisibleItemScrollOffset
+
+    嵌套滚动
+    就是内层和外层的列表滚动方向并不一致
+    如果是纵向嵌套滚动，那么内层列表的高度必须是固定的。如果是横向嵌套滚动，那么内层列表的宽度必须是固定的。
+
+    LazyColumn(modifier = Modifier.height(300.dp)) {
+        items(list, key = { it }) { item ->
+            ...
+        }
+    }
+    这里给items函数新增了一个key参数，这个参数就是用于指定每个子项的唯一id的。
+    添加了key参数之后，Compose编译器就有了一个唯一标识符来精准定位到每个Composable函数，而不是像之前那样只能基于Composable函数的位置来定位了。
+    这样，不管是对Lazy Layout中的元素进行添加、删除、甚至是重新排序，都不会导致多余的重组发生，性能也就大大提升了。
+
+
+6.原创：写给初学者的Jetpack Compose教程，用derivedStateOf提升性能
+    derivedStateOf其实和mutableStateOf是比较相似的，它们都是用于创建State变量，然后Compose则会基于State变量值的变化来触发重组行为。
+    不同的是，derivedStateOf接收的一个表达式，只有当这个表达式中的条件发生变化了，那么才算是State的值发生了变化，这时才会触发重组。
+
+    注意:当state变量的值发生变化时，所有读取这个值的Composable函数都会发生重组
+
+
+7.原创：写给初学者的Jetpack Compose教程，高级Layout
+    在整个Layout过程中，UI树中的每个节点都只会被访问一次。
+    这一点至关重要，因为在Compose的Layout设计上，父布局和子控件之间是不用反复沟通来确认尺寸的，只要一次遍历所有尺寸就都确定下来了。
+    也正是得益于此，用Compose来写界面是不怕UI嵌套的，即使再深的嵌套也不会影响性能，因此它始终是一个线性级别的耗时。
+    而相比之下，View在测量和放置的过程中则会出现多次执行的情况，详情可以参考这篇文章 View为什么会至少进行2次onMeasure、onLayout 。
+
+    编写自定义布局需要用到的最重要的一个函数就是Compose提供的Layout函数，事实上，几乎所有的Compose控件都是基于Layout函数打造出来的。
+        @Composable
+        fun MyColumn(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+            Layout(modifier = modifier, content = content) { measurables, constraints ->
+                val placeables = measurables.map {
+                    it.measure(constraints)
+                }
+                val layoutWidth = placeables.maxOf { it.width }
+                val layoutHeight = placeables.sumOf { it.height }
+                layout(layoutWidth, layoutHeight) {
+                    var y = 0
+                    for (placeable in placeables) {
+                        placeable.placeRelative(x = 0, y = y)
+                        y += placeable.height
+                    }
+                }
+            }
+        }
+
+    IntrinsicSize可以打破传统的Compose测量规则，它允许子布局在被测量之前先去查询子布局的信息，从而让父布局提前于子布局先确定自己的尺寸。
+    对于你自己开发的自定义控件，你也可以通过重写以下函数来自行设置你的规则
+    @Composable
+    fun MyColumn(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+        val measurePolicy = object : MeasurePolicy {
+            override fun MeasureScope.measure(
+                measurables: List<Measurable>,
+                constraints: Constraints
+            ): MeasureResult {
+                ...
+            }
+    
+            override fun IntrinsicMeasureScope.maxIntrinsicHeight(
+                measurables: List<IntrinsicMeasurable>,
+                width: Int
+            ): Int {
+                ...
+            }
+        }
+        Layout(modifier = modifier, content = content, measurePolicy = measurePolicy)
+    }
+    自定义控件在指定MeasurePolicy时，除了必须实现的measure函数之外，还有一些可选的函数可去重写。
+
+
+
+

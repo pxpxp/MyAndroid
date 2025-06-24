@@ -1,0 +1,519 @@
+探索Android开源框架 - 1. OkHttp源码解析
+https://mp.weixin.qq.com/s/TNCqSQb3V6e5OzILZxmOTQ
+
+面试官：Okhttp中缓存和缓存策略如何设置？DiskLruCache中是如何实现缓存的？
+https://blog.51cto.com/u_16163510/6528364
+
+
+1. 添加依赖
+implementation 'com.squareup.okhttp3:okhttp:3.14.9'
+2. 常用请求方法
+    1. 同步GET请求
+    2. 异步get请求
+    3. 异步POST请求提交键值对
+    4. Post方式提交流（上传文件）
+    5. 异步下载文件
+    6. Post提交表单
+3.常用设置
+    1. 设置超时时间
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30,TimeUnit.SECONDS)
+            .readTimeout(60,TimeUnit.SECONDS)
+            .writeTimeout(90,TimeUnit.SECONDS)
+            .build()
+    2. 设置缓存
+        //设置缓存路径和大小，及缓存拦截器
+        val client = OkHttpClient.Builder()
+            .addNetworkInterceptor(CacheInterceptor())
+            .cache(
+                Cache(
+                    File(cacheDir, "httpCache2"),
+                    100 * 1024 * 1024L
+                )
+            ).build()
+
+        //缓存拦截器
+        class CacheInterceptor : Interceptor {
+            override fun intercept(chain: Interceptor.Chain): Response {
+                var request: Request = chain.request()
+                val var10000: Response
+                val response: Response
+                if (NetUtil.isNetworkAvailable(this@OkHttpDemoActivity)) {
+                    //如果有网，返回一个30内有效的响应，则30秒内同一请求会直接从缓存中读取
+                    response = chain.proceed(request)
+                    //构建maxAge = 30秒的CacheControl
+                    val cacheControl = CacheControl.Builder()
+                        .maxAge(30, TimeUnit.SECONDS)
+                        .build()
+                        .toString()
+                    var10000 = response.newBuilder()
+                        .removeHeader("Pragma")
+                        .removeHeader("Cache-Control") //填入30秒的CacheControl
+                        .header("Cache-Control", cacheControl)
+                        .build()
+                } else {
+                    //如果没网，用原来的请求重新构建一个强制从缓存中读取的请求
+                    request = request.newBuilder()
+                        .cacheControl(CacheControl.FORCE_CACHE)
+                        .build()
+                    var10000 = chain.proceed(request)
+                }
+                return var10000
+            }
+        }
+        //OkHttpClient.cache的入参Cache构造函数如下：
+        public Cache(File directory, long maxSize) {
+            this(directory, maxSize, FileSystem.SYSTEM);
+        }
+
+        Cache(File directory, long maxSize, FileSystem fileSystem) {
+            this.cache = DiskLruCache.create(fileSystem, directory, VERSION, ENTRY_COUNT, maxSize);
+        }
+
+    3. 设置失败重试
+        val client = OkHttpClient.Builder()
+            .retryOnConnectionFailure(true)
+            .build()
+    4. 持久化cookie
+        //添加三方库依赖
+        implementation 'com.zhy:okhttputils:2.6.2'
+        //持久化cookie,保持session会话：
+        val cookieJar = new CookieJarImpl(new PersistentCookieStore(CommonModule.getAppContext()))
+        val client = OkHttpClient.Builder()
+            .cookieJar(cookieJar)
+            .build()
+    5.拦截器
+        拦截器可以分为内部拦截器和外部拦截器
+        内部拦截器：okhttp系统的拦截器，有5个。
+        外部拦截器：就是我们自己定义的拦截器
+        https://www.jianshu.com/p/7dc2d6577b10
+
+
+
+举例：
+    1. 同步GET请求
+        执行请求的操作是阻塞式的，直到http响应返回
+
+        1. 创建OkHttpClient对象
+            直接创建
+            val client = OkHttpClient()
+        通过Builder模式创建
+
+        val client = OkHttpClient.Builder()
+            .build()
+        2. 创建Request对象
+            val request = Request.Builder()
+                .url("https://www.baidu.com")
+                .get()
+                .build()
+        3. 将request封装成call对象
+            val call = client.newCall(request)
+        4. 调用call.execute发送同步请求
+            val response = call.execute()
+            if (response.isSuccessful) {
+                log(response.body()?.string())
+            } else {
+                log(IOException("Unexpected code $response").message)
+            }
+            注意：需要在子线程调用，发送请求后，当前线程就会进入阻塞状态，直到收到响应
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    getSync()
+                }
+            }
+        别忘了添加网络请求权限
+        <uses-permission android:name="android.permission.INTERNET" />
+        如果是非https请求，可能会报错：java.net.UnknownServiceException: CLEARTEXT communication to。。。
+        CLEARTEXT，就是明文的意思，在Android P系统的设备上，如果应用使用的是非加密的明文流量的http网络请求，则会导致该应用无法进行网络请求， https则不会受影响，同样地，如果应用嵌套了webView，webView也只能使用https请求;
+        解决该异常需要改为https请求，或者在 AndroidManifest.xml文件的Application标签中加入android:usesCleartextTraffic="true"
+
+/* 源码解析 */
+Request
+    Request.Builder()构造方法
+        constructor() {
+            this.method = "GET"
+            this.headers = Headers.Builder()
+        }
+        open fun build(): Request {
+            return Request(
+                checkNotNull(url) { "url == null" },
+                method,
+                headers.build(),
+                body,
+                tags.toImmutableMap()
+            )
+        }
+
+        //Request构造方法
+        internal constructor(request: Request) {
+            this.url = request.url
+            this.method = request.method
+            this.body = request.body
+            this.tags = if (request.tags.isEmpty()) {
+                mutableMapOf()
+            } else {
+                request.tags.toMutableMap()
+            }
+            this.headers = request.headers.newBuilder()
+        }
+
+OkHttpClient
+    OkHttpClient.Builder()
+        OkHttpClient构造方法实现如下:
+            constructor() : this(Builder())
+        // Builder的构造方法中提供了默认值：
+        internal constructor(okHttpClient: OkHttpClient) : this() {
+            this.dispatcher = okHttpClient.dispatcher
+            this.connectionPool = okHttpClient.connectionPool
+            this.interceptors += okHttpClient.interceptors
+            this.networkInterceptors += okHttpClient.networkInterceptors
+            this.eventListenerFactory = okHttpClient.eventListenerFactory
+            this.retryOnConnectionFailure = okHttpClient.retryOnConnectionFailure
+            this.authenticator = okHttpClient.authenticator
+            this.followRedirects = okHttpClient.followRedirects
+            this.followSslRedirects = okHttpClient.followSslRedirects
+            this.cookieJar = okHttpClient.cookieJar
+            this.cache = okHttpClient.cache
+            this.dns = okHttpClient.dns
+            this.proxy = okHttpClient.proxy
+            this.proxySelector = okHttpClient.proxySelector
+            this.proxyAuthenticator = okHttpClient.proxyAuthenticator
+            this.socketFactory = okHttpClient.socketFactory
+            this.sslSocketFactoryOrNull = okHttpClient.sslSocketFactoryOrNull
+            this.x509TrustManagerOrNull = okHttpClient.x509TrustManager
+            this.connectionSpecs = okHttpClient.connectionSpecs
+            this.protocols = okHttpClient.protocols
+            this.hostnameVerifier = okHttpClient.hostnameVerifier
+            this.certificatePinner = okHttpClient.certificatePinner
+            this.certificateChainCleaner = okHttpClient.certificateChainCleaner
+            this.callTimeout = okHttpClient.callTimeoutMillis
+            this.connectTimeout = okHttpClient.connectTimeoutMillis
+            this.readTimeout = okHttpClient.readTimeoutMillis
+            this.writeTimeout = okHttpClient.writeTimeoutMillis
+            this.pingInterval = okHttpClient.pingIntervalMillis
+            this.minWebSocketMessageToCompress = okHttpClient.minWebSocketMessageToCompress
+            this.routeDatabase = okHttpClient.routeDatabase
+        }
+    //build()
+    fun build(): OkHttpClient = OkHttpClient(this)
+
+OkHttpClient.newCall(request)
+    override fun newCall(request: Request): Call = RealCall(this, request, forWebSocket = false)
+    RealCall继承Call，构造方法为
+        class RealCall(
+            val client: OkHttpClient,
+            /** The application's original request unadulterated by redirects or auth headers. */
+            val originalRequest: Request,
+            val forWebSocket: Boolean
+        ) : Call {
+            ......
+        }
+
+call.execute-同步请求方法源码，注意RealCall
+    RealCall:上一步得到
+    Call的方法要看RealCall中的实现，dispatcher主要负责保存和移除同步请求
+    RealCall.execute同步请求方法源码
+        override fun execute(): Response {
+            //1.判断executed，确保同一个HTTP请求只执行一次
+            check(executed.compareAndSet(false, true)) { "Already Executed" }
+
+            timeout.enter()
+            callStart()
+            try {
+                //2.调用dispatcher的executed将请求加入到同步请求队列中
+                client.dispatcher.executed(this)
+                //3.通过拦截器链获取response
+                return getResponseWithInterceptorChain()
+            } finally {
+                //4.回收同步请求
+                client.dispatcher.finished(this)
+            }
+        }
+call.enqueue-异步请求方法源码，注意AsyncCall
+    override fun enqueue(responseCallback: Callback) {
+        //确保call只执行一次
+        check(executed.compareAndSet(false, true)) { "Already Executed" }
+
+        callStart()
+        client.dispatcher.enqueue(AsyncCall(responseCallback))
+    }
+
+    可以看到他们都调用了dispatcher的方法
+
+Dispatcher-任务调度
+    OkHttpClient中val dispatcher: Dispatcher = builder.dispatcher
+    OkHttpClient.Builderl构造方法中internal var dispatcher: Dispatcher = Dispatcher()
+    Dispatcher用于控制并发的请求，主要维护了以下变量
+        /**
+        最大并发请求数
+         */
+        private int maxRequests = 64;
+        /**
+        每个主机最大请求数
+         */
+        private int maxRequestsPerHost = 5;
+        /**
+        消费者线程池
+        默认为ThreadPoolExecutor(0, Int.MAX_VALUE, 60, TimeUnit.SECONDS, SynchronousQueue(), threadFactory("$okHttpName Dispatcher", false))
+         */
+        private ExecutorService executorService;
+        /**
+        将要运行的异步请求队列
+         */
+        private final Deque<AsyncCall> readyAsyncCalls = new ArrayDeque<>();
+        /**
+        正在运行的异步请求队列
+         */
+        private final Deque<AsyncCall> runningAsyncCalls = new ArrayDeque<>();
+        /**
+        正在运行的同步请求队列
+         */
+        private final Deque<RealCall> runningSyncCalls = new ArrayDeque<>();
+
+    同步
+    client.dispatcher.executed(this)
+        @Synchronized internal fun executed(call: RealCall) {
+            runningSyncCalls.add(call)
+        }
+    另外：
+    dispatcher().finished用于回收同步请求，实现如下：
+        internal fun finished(call: AsyncCall) {
+            call.callsPerHost.decrementAndGet()
+            finished(runningAsyncCalls, call)
+        }
+
+        /** Used by [Call.execute] to signal completion. */
+        internal fun finished(call: RealCall) {
+            finished(runningSyncCalls, call)
+        }
+
+        private fun <T> finished(calls: Deque<T>, call: T) {
+            val idleCallback: Runnable?
+            synchronized(this) {
+                if (!calls.remove(call)) throw AssertionError("Call wasn't in-flight!")
+                idleCallback = this.idleCallback
+            }
+        }
+    异步  AsyncCall是RealCall的内部类且继承Runnable
+    client.dispatcher.enqueue(AsyncCall(responseCallback))方法如下：
+        internal fun enqueue(call: AsyncCall) {
+            synchronized(this) {
+                //将请求加入到准备好的异步请求队列中
+                readyAsyncCalls.add(call)
+
+                // Mutate the AsyncCall so that it shares the AtomicInteger of an existing running call to
+                // the same host.
+                if (!call.call.forWebSocket) {
+                    //通过host查找已经存在的Call
+                    val existingCall = findExistingCallWithHost(call.host)
+                    //如果存在则复用callsPerHost
+                    if (existingCall != null) call.reuseCallsPerHostFrom(existingCall)
+                }
+            }
+            promoteAndExecute()
+        }
+
+        private fun promoteAndExecute(): Boolean {
+            this.assertThreadDoesntHoldLock()
+
+            val executableCalls = mutableListOf<AsyncCall>()
+            val isRunning: Boolean
+            synchronized(this) {
+                val i = readyAsyncCalls.iterator()
+                while (i.hasNext()) {
+                    val asyncCall = i.next()
+
+                    if (runningAsyncCalls.size >= this.maxRequests) break // Max capacity.
+                    if (asyncCall.callsPerHost.get() >= this.maxRequestsPerHost) continue // Host max capacity.
+
+                    i.remove()
+                    asyncCall.callsPerHost.incrementAndGet()
+                    executableCalls.add(asyncCall)
+                    runningAsyncCalls.add(asyncCall)
+                }
+                isRunning = runningCallsCount() > 0
+            }
+
+            for (i in 0 until executableCalls.size) {
+                val asyncCall = executableCalls[i]
+                // ✅
+                asyncCall.executeOn(executorService)
+            }
+
+            return isRunning
+        }
+        //asyncCall.executeOn(executorService)
+        fun executeOn(executorService: ExecutorService) {
+            client.dispatcher.assertThreadDoesntHoldLock()
+
+            var success = false
+            try {
+                executorService.execute(this)
+                success = true
+            } catch (e: RejectedExecutionException) {
+                val ioException = InterruptedIOException("executor rejected")
+                ioException.initCause(e)
+                noMoreExchanges(ioException)
+                responseCallback.onFailure(this@RealCall, ioException)
+            } finally {
+                if (!success) {
+                    client.dispatcher.finished(this) // This call is no longer running!
+                }
+            }
+        }
+        //executorService.execute(this) 线程池执行AsyncCall，AyncCall继承Runnable
+        override fun run() {
+            threadName("OkHttp ${redactedUrl()}") {
+                var signalledCallback = false
+                timeout.enter()
+                try {
+                    val response = getResponseWithInterceptorChain()
+                    signalledCallback = true
+                    responseCallback.onResponse(this@RealCall, response)
+                } catch (e: IOException) {
+                    if (signalledCallback) {
+                        // Do not signal the callback twice!
+                        Platform.get().log("Callback failure for ${toLoggableString()}", Platform.INFO, e)
+                    } else {
+                        responseCallback.onFailure(this@RealCall, e)
+                    }
+                } catch (t: Throwable) {
+                    cancel()
+                    if (!signalledCallback) {
+                        val canceledException = IOException("canceled due to $t")
+                        canceledException.addSuppressed(t)
+                        responseCallback.onFailure(this@RealCall, canceledException)
+                    }
+                    throw t
+                } finally {
+                    client.dispatcher.finished(this)
+                }
+            }
+        }
+
+
+    使用者调用Call.enqueue(Callback)；
+    Call.enqueue中调用了client.dispatcher().enqueue(new AsyncCall(responseCallback))；
+    dispatcher().enqueue调用promoteAndExecute；
+    promoteAndExecute中会遍历readyAsyncCalls，放到executableCalls和runningAsyncCalls中，并调用runningCallsCount重新计算待执行的同步异步请求数量，然后遍历executableCalls，调用 asyncCall.executeOn(executorService())；
+    asyncCall.executeOn中调用executorService.execute(this)，其中this为runnable类型的asyncCall，最后会调用其run方法；
+    NamedRunnable的run方法中调用了execute方法，asyncCall中实现了execute方法；
+    asyncCall.execute中调用了 Response response = getResponseWithInterceptorChain()，并调用callback,最终调用dispatcher().finished；
+    dispatcher().finished中又调用了promoteAndExecute方法，直到队列中的请求都执行完毕；
+
+同步execute方法：在Call中调用getResponseWithInterceptorChain()
+异步enqueue方法：异步请求的调用顺序：
+                    Call.enqueue(responseCallback: Callback)
+                    Call.enqueue中调用了client.dispatcher().enqueue(new AsyncCall(responseCallback))
+                    Dispatcher.enqueue(new AsyncCall(responseCallback))中promoteAndExecute()
+                    Dispatcher.promoteAndExecute()中会遍历readyAsyncCalls，放到executableCalls和runningAsyncCalls中，
+                        且asyncCall.executeOn(executorService)
+                    AsyncCall.executeOn()中executorService.execute(this)，AsyncCall继承Runnable，executorService默认线程池,所以调用AsyncCall.run
+                    AsyncCall中run()中getResponseWithInterceptorChain()，最终调用dispatcher().finished
+                    dispatcher().finished中又调用了promoteAndExecute方法，直到队列中的请求都执行完毕；
+
+
+拦截器链
+    拦截器是okhttp中一个强大的机制，可以实现网络监听，请求及响应重写，请求失败重试等功能；
+    上面的同步请求异步请求源码中都有调用getResponseWithInterceptorChain方法
+    RealCall.getResponseWithInterceptorChain()
+        @Throws(IOException::class)
+        internal fun getResponseWithInterceptorChain(): Response {
+            // ✅存放拦截器list
+            // Build a full stack of interceptors.
+            val interceptors = mutableListOf<Interceptor>()
+            //0. client中拦截器
+            interceptors += client.interceptors
+            //1. 重试和失败重定向拦截器
+            interceptors += RetryAndFollowUpInterceptor(client)
+            //2. 桥接适配拦截器（如补充请求头，编码方式，压缩方式）
+            interceptors += BridgeInterceptor(client.cookieJar)
+            //3. 缓存拦截器
+            interceptors += CacheInterceptor(client.cache)
+            //4. 连接拦截器
+            interceptors += ConnectInterceptor
+            if (!forWebSocket) {
+                interceptors += client.networkInterceptors
+            }
+            //5. 网络io流拦截器
+            interceptors += CallServerInterceptor(forWebSocket)
+            // ✅创建拦截器链chain，并执行chain.proceed方法
+            val chain = RealInterceptorChain(
+                call = this,
+                interceptors = interceptors,
+                index = 0,
+                exchange = null,
+                request = originalRequest,
+                connectTimeoutMillis = client.connectTimeoutMillis,
+                readTimeoutMillis = client.readTimeoutMillis,
+                writeTimeoutMillis = client.writeTimeoutMillis
+            )
+
+            var calledNoMoreExchanges = false
+            try {
+                val response = chain.proceed(originalRequest)
+                if (isCanceled()) {
+                    response.closeQuietly()
+                    throw IOException("Canceled")
+                }
+                return response
+            } catch (e: IOException) {
+                calledNoMoreExchanges = true
+                throw noMoreExchanges(e) as Throwable
+            } finally {
+                if (!calledNoMoreExchanges) {
+                    noMoreExchanges(null)
+                }
+            }
+        }
+
+    RealInterceptorChain
+    chain.proceed(originalRequest)方法，next初始值为0，不断取出拦截器进行操作或者请求
+        @Throws(IOException::class)
+        override fun proceed(request: Request): Response {
+            check(index < interceptors.size)
+
+            calls++
+
+            if (exchange != null) {
+                check(exchange.finder.sameHostAndPort(request.url)) {
+                    "network interceptor ${interceptors[index - 1]} must retain the same host and port"
+                }
+                check(calls == 1) {
+                    "network interceptor ${interceptors[index - 1]} must call proceed() exactly once"
+                }
+            }
+
+            // Call the next interceptor in the chain.
+            val next = copy(index = index + 1, request = request)
+            val interceptor = interceptors[index]
+
+            @Suppress("USELESS_ELVIS")
+            val response = interceptor.intercept(next) ?: throw NullPointerException(
+                "interceptor $interceptor returned null")
+
+            if (exchange != null) {
+                check(index + 1 >= interceptors.size || next.calls == 1) {
+                    "network interceptor $interceptor must call proceed() exactly once"
+                }
+            }
+
+            check(response.body != null) { "interceptor $interceptor returned a response with no body" }
+
+            return response
+        }
+
+    RetryAndFollowUpInterceptor
+        RetryAndFollowUpInterceptor的intercept方法中调用下一个拦截器链的proceed方法获取response， 并在while (true) 循环中根据异常结果或响应结果判断是否要进行重新请求，如当发生IOException或者RouteException时会执行recover方法， 并且通过++followUpCount > MAX_FOLLOW_UPS判断最大重试次数，超出则直接跳出循环；
+        由RealInterceptorChain.proceed可知会继续调用下一个拦截器的intercept方法，由getResponseWithInterceptorChain中顺序可知下一个拦截器就是BridgeInterceptor
+        那么来继续看一下BridgeInterceptor的intercept方法
+    BridgeInterceptor
+        BridgeInterceptor的intercept中，先各种判断对RequestBody的请求头进行补充，将其转化为能够进行网络访问的请求，然后调用下一个拦截器链的proceed方法获取response,再对respone的响应头进行补充，如设置cookieJar，gzip解压，将请求回来的响应response转化为用户可用的response;
+        调用下一个拦截器链的proceed，又会调用下一个拦截器的intercept方法，下一个拦截器为CacheInterceptor
+    CacheInterceptor
+        CacheInterceptor的intercept中对用不用缓存和对缓存是否更新进行了各种判断，如果用网络请求也会调用下一个拦截器链的proceed方法获取response,
+        那么下一个拦截器就是ConnectInterceptor
+    ConnectInterceptor
+        ConnectInterceptor的intercept方法如下, 正式开启okhttp的网络请求
+    CallServerInterceptor
+

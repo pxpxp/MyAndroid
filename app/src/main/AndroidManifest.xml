@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!--
+<uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    -->
+    <!-- 这个权限用于写存储卡 -->
+    <!--<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> &lt;!&ndash; 这个权限用于读存储卡 &ndash;&gt;
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />-->
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:name=".App"
+        android:requestLegacyExternalStorage="true"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:screenOrientation="portrait"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MyAndroid"
+        tools:targetApi="33">
+        <!--<activity
+            android:name=".androidother.MainOtherActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>-->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--自定义View-->
+        <activity android:name="com.example.myandroid.widget.CustomViewActivity" />
+        <activity android:name="com.example.myandroid.widget.CustomViewTestActivity" />
+
+        <!--音视频学习1-->
+        <activity android:name=".video.study1.VideoHomeActivity" />
+        <activity android:name=".video.study1.video1.VideoActivity1" />
+        <activity android:name=".video.study1.video1.VideoActivity2" />
+        <activity android:name=".video.study1.video1.VideoActivity3" />
+        <activity android:name=".video.study1.video2.VideoActivity4" />
+        <activity android:name=".video.study1.video4.VideoActivity6" />
+        <activity android:name=".video.study1.video4.VideoActivity7" />
+        <activity android:name=".video.study1.video5.VideoActivity8" />
+        <activity android:name=".video.study1.video7.VideoActivity9" />
+        <activity android:name=".video.study1.video7.VideoActivity10" />
+
+        <!--音视频学习2-->
+        <activity android:name=".video.keyframe.KFVideoHomeActivity" />
+        <activity android:name=".video.keyframe.video1.KFVideoActivity1" />
+        <activity android:name=".video.keyframe.video2.KFVideoActivity2" />
+        <activity android:name=".video.keyframe.video3.KFVideoActivity3" />
+        <activity android:name=".video.keyframe.video4.KFVideoActivity4" />
+        <activity android:name=".video.keyframe.video5.KFVideoActivity5" />
+        <activity android:name=".video.keyframe.video6.KFVideoActivity6" />
+
+
+        <!--opengl-->
+        <activity android:name="com.example.myandroid.video.keyframeopengl.KFOpenGLHomeActivity" />
+        <activity android:name="com.example.myandroid.video.keyframeopengl.opengl1.KFOpenGLActivity1" />
+    </application>
+
+</manifest>

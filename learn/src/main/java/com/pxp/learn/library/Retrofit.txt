@@ -1,0 +1,267 @@
+/* 基本使用流程 */
+    定义HTTP API，用于描述请求
+    public interface GitHubService {
+         @GET("users/{user}/repos")
+         Call<List<Repo>> listRepos(@Path("user") String user);
+    }
+
+    创建Retrofit并生成API的实现
+    （注意： 方法上面的注解表示请求的接口部分，返回类型是请求的返回值类型，方法的参数即是请求的参数）
+    // 1.Retrofit构建过程
+    Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.github.com/")
+    .client(okHttpClient)
+    .build();
+
+    // 2.创建网络请求接口类实例过程
+    GitHubService service = retrofit.create(GitHubService.class);
+
+    调用API方法，生成Call，执行请求
+    // 3.生成并执行请求过程
+    Call<List<Repo>> call = service.listRepos("octocat");
+    call.execute() or call.enqueue()
+
+    Retrofit的基本使用流程很简洁，但是简洁并不代表简单，Retrofit为了实现这种简洁的使用流程，内部使用了优秀的架构设计和大量的设计模式，在分析过Retrofit最新版的源码和大量优秀的Retrofit源码分析文章后发现，要想真正理解Retrofit内部的核心源码流程和设计思想，首先，需要对这九大设计模式有一定的了解，如下：
+
+    Retrofit构建过程
+    建造者模式、工厂方法模式
+
+    创建网络请求接口实例过程
+    外观模式、代理模式、单例模式、策略模式、装饰模式（建造者模式）
+
+    生成并执行请求过程
+    适配器模式（代理模式、装饰模式）
+    其次，需要对OKHttp源码有一定的了解。让我们按以上流程去深入Retrofit源码内部，领悟它带给我们的设计之美。
+
+/* Retrofit构建过程 */
+    Retrofit.Builder().build()
+        首先Retrofit中有一个全局变量非常关键，在V2.5之前的版本，使用的是LinkedHashMap()，它是一个网络请求配置对象，是由网络请求接口中方法注解进行解析后得到的。
+        public final class Retrofit {
+            // 网络请求配置对象，存储网络请求相关的配置，如网络请求的方法、数据转换器、网络请求适配器、网络请求工厂、基地址等
+            private final Map<Method, ServiceMethod<?>> serviceMethodCache = new ConcurrentHashMap<>();
+        }
+
+        Retrofit使用了建造者模式通过内部类Builder类中build()建立一个Retrofit实例，如下：
+        public static final class Builder {
+            // 平台类型对象（Platform -> Android)
+            private final Platform platform;
+            // 网络请求工厂，默认使用OkHttpCall（工厂方法模式）
+            private @Nullable okhttp3.Call.Factory callFactory;
+            // 网络请求的url地址
+            private @Nullable HttpUrl baseUrl;
+            // 数据转换器工厂的集合
+            private final List<Converter.Factory> converterFactories = new ArrayList<>();
+            // 网络请求适配器工厂的集合，默认是ExecutorCallAdapterFactory
+            private final List<CallAdapter.Factory> callAdapterFactories = new ArrayList<>();
+            // 回调方法执行器，在 Android 上默认是封装了 handler 的 MainThreadExecutor, 默认作用是：切换线程（子线程 -> 主线程）
+            private @Nullable Executor callbackExecutor;
+            // 一个开关，为true则会缓存创建的ServiceMethod
+            private boolean validateEagerly;
+        }
+        public Retrofit build() {
+            if (baseUrl == null) {
+                throw new IllegalStateException("Base URL required.");
+            }
+
+            okhttp3.Call.Factory callFactory = this.callFactory;
+            if (callFactory == null) {
+                // ✅网络请求工厂，默认使用OkHttpCall
+                callFactory = new OkHttpClient();
+            }
+
+            Executor callbackExecutor = this.callbackExecutor;
+            if (callbackExecutor == null) {
+                // ✅Android extends Platform     //defaultCallbackExecutor()中return new MainThreadExecutor()
+                callbackExecutor = platform.defaultCallbackExecutor();
+            }
+            // ✅callbackExecutor 回调方法执行器
+            // Make a defensive copy of the adapters and add the default Call adapter.
+            List<CallAdapter.Factory> callAdapterFactories = new ArrayList<>(this.callAdapterFactories);
+            callAdapterFactories.addAll(platform.defaultCallAdapterFactories(callbackExecutor));
+
+            // ✅converterFactories 数据转换器工厂的集合    // 添加默认适配器工厂在集合尾部
+            // Make a defensive copy of the converters.
+            List<Converter.Factory> converterFactories =
+                    new ArrayList<>(
+                            1 + this.converterFactories.size() + platform.defaultConverterFactoriesSize());
+
+            // Add the built-in converter factory first. This prevents overriding its behavior but also
+            // ensures correct behavior when using converters that consume all types.
+            converterFactories.add(new BuiltInConverters());
+            converterFactories.addAll(this.converterFactories);
+            converterFactories.addAll(platform.defaultConverterFactories());
+
+            return new Retrofit(
+                    callFactory,
+                    baseUrl,
+                    unmodifiableList(converterFactories),
+                    unmodifiableList(callAdapterFactories),
+                    callbackExecutor,
+                    validateEagerly);
+        }
+
+    retrofit.create(xxx)
+        public <T> T create(final Class<T> service) {
+            // ✅校验接口和是否(validateEagerly)提前loadServiceMethod
+            validateServiceInterface(service);
+            return (T)
+                Proxy.newProxyInstance(
+                        service.getClassLoader(),
+                        new Class<?>[]{service},
+                        new InvocationHandler() {
+                            private final Platform platform = Platform.get();
+                            private final Object[] emptyArgs = new Object[0];
+
+                            // ✅动态代理调用接口方法，判断是否是平台默认方法，不是则通过注解解析方法并放入缓存，下次直接取
+                            @Override
+                            public @Nullable Object invoke(Object proxy, Method method, @Nullable Object[] args)
+                                    throws Throwable {
+                                // If the method is a method from Object then defer to normal invocation.
+                                if (method.getDeclaringClass() == Object.class) {
+                                    return method.invoke(this, args);
+                                }
+                                args = args != null ? args : emptyArgs;
+                                return platform.isDefaultMethod(method)
+                                        ? platform.invokeDefaultMethod(method, service, proxy, args)
+                                        : loadServiceMethod(method).invoke(args);
+                            }
+                        });
+        }
+        // ✅loadServiceMethod(method)得到ServiceMethod对象，通过调用ServiceMethod对象.invoke得到对应方法返回值（与协程有关）
+        ServiceMethod<?> loadServiceMethod(Method method) {
+            ServiceMethod<?> result = serviceMethodCache.get(method);
+            if (result != null) return result;
+
+            synchronized (serviceMethodCache) {
+                result = serviceMethodCache.get(method);
+                if (result == null) {
+                    // ✅解析注解配置得到了ServiceMethod
+                    result = ServiceMethod.parseAnnotations(this, method);
+                    // ✅可以看到，最终加入到ConcurrentHashMap缓存中
+                    serviceMethodCache.put(method, result);
+                }
+            }
+            return result;
+        }
+        // ✅ServiceMethod.parseAnnotations
+        abstract class ServiceMethod<T> {
+            static <T> ServiceMethod<T> parseAnnotations(Retrofit retrofit, Method method) {
+                // 通过RequestFactory解析注解配置（工厂模式、内部使用了建造者模式）
+                RequestFactory requestFactory = RequestFactory.parseAnnotations(retrofit, method);
+
+                Type returnType = method.getGenericReturnType();
+                if (Utils.hasUnresolvableType(returnType)) {
+                    throw methodError(
+                            method,
+                            "Method return type must not include a type variable or wildcard: %s",
+                            returnType);
+                }
+                if (returnType == void.class) {
+                    throw methodError(method, "Service methods cannot return void.");
+                }
+
+                return HttpServiceMethod.parseAnnotations(retrofit, method, requestFactory);
+            }
+
+            abstract @Nullable T invoke(Object[] args);
+        }
+        // ✅RequestFactory
+        //  RequestFactory.parseAnnotations(retrofit, method);
+        //  内部new Builder(retrofit, method).build()生成RequestFactory，同时里面parseMethodAnnotation(annotation);
+        Builder(Retrofit retrofit, Method method) {
+            this.retrofit = retrofit;
+            this.method = method;
+            // 获取网络请求接口方法里的注释
+            this.methodAnnotations = method.getAnnotations();
+            // 获取网络请求接口方法里的参数类型
+            this.parameterTypes = method.getGenericParameterTypes();
+            // 获取网络请求接口方法里的注解内容
+            this.parameterAnnotationsArray = method.getParameterAnnotations();
+        }
+        // ✅HttpServiceMethod.parseAnnotations(retrofit, method, requestFactory)
+        static <ResponseT, ReturnT> HttpServiceMethod<ResponseT, ReturnT> parseAnnotations(
+                    Retrofit retrofit, Method method, RequestFactory requestFactory) {
+            boolean isKotlinSuspendFunction = requestFactory.isKotlinSuspendFunction;
+            boolean continuationWantsResponse = false;
+            boolean continuationBodyNullable = false;
+
+            Annotation[] annotations = method.getAnnotations();
+            Type adapterType;
+            if (isKotlinSuspendFunction) {
+                Type[] parameterTypes = method.getGenericParameterTypes();
+                Type responseType =
+                        Utils.getParameterLowerBound(
+                                0, (ParameterizedType) parameterTypes[parameterTypes.length - 1]);
+                if (getRawType(responseType) == Response.class && responseType instanceof ParameterizedType) {
+                    // Unwrap the actual body type from Response<T>.
+                    responseType = Utils.getParameterUpperBound(0, (ParameterizedType) responseType);
+                    continuationWantsResponse = true;
+                } else {
+                    // TODO figure out if type is nullable or not
+                    // Metadata metadata = method.getDeclaringClass().getAnnotation(Metadata.class)
+                    // Find the entry for method
+                    // Determine if return type is nullable or not
+                }
+
+                adapterType = new Utils.ParameterizedTypeImpl(null, Call.class, responseType);
+                annotations = SkipCallbackExecutorImpl.ensurePresent(annotations);
+            } else {
+                adapterType = method.getGenericReturnType();
+            }
+            // ✅根据网络请求接口方法的返回值和注解类型，
+            // 从Retrofit对象中获取对应的网络请求适配器
+            CallAdapter<ResponseT, ReturnT> callAdapter =
+                    createCallAdapter(retrofit, method, adapterType, annotations);
+            // ✅得到响应类型
+            Type responseType = callAdapter.responseType();
+            if (responseType == okhttp3.Response.class) {
+                throw methodError(
+                        method,
+                        "'"
+                                + getRawType(responseType).getName()
+                                + "' is not a valid response body type. Did you mean ResponseBody?");
+            }
+            if (responseType == Response.class) {
+                throw methodError(method, "Response must include generic type (e.g., Response<String>)");
+            }
+            // TODO support Unit for Kotlin?
+            if (requestFactory.httpMethod.equals("HEAD") && !Void.class.equals(responseType)) {
+                throw methodError(method, "HEAD method must use Void as response type.");
+            }
+            // ✅根据网络请求接口方法的返回值和注解类型从Retrofit对象中获取对应的数据转换器
+            Converter<ResponseBody, ResponseT> responseConverter =
+                    createResponseConverter(retrofit, method, responseType);
+
+            okhttp3.Call.Factory callFactory = retrofit.callFactory;
+            // ✅根据是否是协程方法或者协程体内返回对应HttpServiceMethod<ResponseT, ReturnT>
+            if (!isKotlinSuspendFunction) {
+                return new CallAdapted<>(requestFactory, callFactory, responseConverter, callAdapter);
+            } else if (continuationWantsResponse) {
+                //noinspection unchecked Kotlin compiler guarantees ReturnT to be Object.
+                return (HttpServiceMethod<ResponseT, ReturnT>)
+                        new SuspendForResponse<>(
+                                requestFactory,
+                                callFactory,
+                                responseConverter,
+                                (CallAdapter<ResponseT, Call<ResponseT>>) callAdapter);
+            } else {
+                //noinspection unchecked Kotlin compiler guarantees ReturnT to be Object.
+                return (HttpServiceMethod<ResponseT, ReturnT>)
+                        new SuspendForBody<>(
+                                requestFactory,
+                                callFactory,
+                                responseConverter,
+                                (CallAdapter<ResponseT, Call<ResponseT>>) callAdapter,
+                                continuationBodyNullable);
+            }
+        }
+        // ✅最后loadServiceMethod(method).invoke(args)
+    service对象是动态代理对象Proxy.newProxyInstance()，当调用api接口方法时会被它拦截，
+    然后调用自身的InvocationHandler#invoke()，得到最终的Call对象。
+最后call.execute() or call.enqueue()
+
+
+https://blog.csdn.net/gqg_guan/article/details/129122780
+==================================================================================
+Android Retrofit文件下载进度显示问题的解决方法
+https://www.yii666.com/blog/142935.html

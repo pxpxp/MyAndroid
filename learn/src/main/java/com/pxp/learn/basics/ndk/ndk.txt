@@ -1,0 +1,73 @@
+NDK(一)：NDK的集成
+https://blog.csdn.net/Love667767/article/details/129727138
+    ```
+    # 设置CMake最小版本
+    cmake_minimum_required(VERSION 3.18.1)
+
+    # 设置项目名称
+    project("jnitestdemo")
+
+    # 编译library，生成链接库jnitestdemo。如果当前这个链接库与其它库有关联，可以使用target_link_libraries进行关联。
+    add_library(
+    		# 设置library名称
+    		jnitestdemo
+
+    		# 设置library模式
+            # SHARED模式会编译so文件，STATIC模式不会编译
+    		SHARED
+
+            # 设置原生代码路径
+            native-lib.cpp)
+
+    # 查找log的路径，并赋值给log-lib这个变量。
+    find_library(log-lib log)
+
+    # 将两个链接库关联到一起。
+    target_link_libraries(
+    		# 指定要关联其它lib的库，这里指当前的jnitestdemo。
+            jnitestdemo
+
+            # 将log-lib关联到jnitestdemo上(相当于是jnitestdemo依赖log-lib)。
+            ${log-lib})
+    ```
+
+    ```
+    #include <jni.h>
+    #include <string>
+
+    extern "C" JNIEXPORT jstring JNICALL
+    Java_com_elson_jnitestdemo_MainActivity_stringFromJNI(
+            JNIEnv* env,
+            jobject /* this */) {
+        std::string hello = "Hello from C++";
+        return env->NewStringUTF(hello.c_str());
+    }
+    ```
+    JNIEXPORT 和 JNICALL 是JNI中所定义的宏，所以需要引入 <jni.h> 这个头文件。
+    因为方法返回了一个 String 类型的数据，所以引入 C++ 的 <sting> 库。
+    extern “C” 的作用：指示编译器按C语言（而不是C++）的方式进行编译。
+    C编译：C语言的方法签名只包含方法名，不包含参数，所以C语言中不存在方法重载。
+    C++编译： C++的方法签名包含方法名和含参数，所以存在方法重载。
+    jobect对象：jobject 表示Java对象中的this，如果是静态方法则表示jclass。
+    JNIEnv对象：代表Java调用Native层的环境，一个封装了几乎所有的JNI方法的指针。其只在创建它的线程有效，不能跨线程传递，不同的线程的JNIEnv彼此独立。
+
+NDK(二)：JNI的数据结构
+    JNI 层的基本数据类型：
+        //jni.h 文件
+        typedef uint8_t  jboolean; /* unsigned 8 bits */
+        typedef int8_t   jbyte;    /* signed 8 bits */
+        typedef uint16_t jchar;    /* unsigned 16 bits */
+        typedef int16_t  jshort;   /* signed 16 bits */
+        typedef int32_t  jint;     /* signed 32 bits */
+        typedef int64_t  jlong;    /* signed 64 bits */
+        typedef float    jfloat;   /* 32-bit IEEE 754 */
+        typedef double   jdouble;  /* 64-bit IEEE 754 */
+
+NDK(三)：JNIEnv解析
+https://blog.csdn.net/Love667767/article/details/129734905
+
+NDK(四)：Native与Java层互调
+https://blog.csdn.net/Love667767/article/details/129727094
+
+NDK(五)：JNI静态注册与动态注册
+https://blog.csdn.net/Love667767/article/details/129740052

@@ -1,0 +1,327 @@
+探索Android开源框架 - 4. Glide使用及源码解析
+https://mp.weixin.qq.com/s/oSXDYhc_t4xhAVCfADxXfg
+
+/* 使用 */
+    1. 添加依赖
+        implementation 'com.github.bumptech.glide:glide:4.12.0'
+        annotationProcessor 'com.github.bumptech.glide:compiler:4.12.0'
+    2. 基础使用
+        加载图片
+        Glide.with(this)
+            .load(imgUrl)
+            .into(imageView1)
+        取消加载
+        Glide.with(this).clear(imageView1)
+
+        实际上，当 Glide.with() 中传入的 Activity 或 Fragment 实例销毁时，Glide 会自动取消加载并回收资源；
+
+    3. 进阶操作
+        更多的可选配置
+        Glide.with(this)//上下文对象Context
+            .load(imgUrl)//图片地址
+            .placeholder(R.mipmap.ic_launcher)//加载前的占位图
+            .error(R.mipmap.ic_launcher)//加载失败的占位图
+            .override(150,100)//指定图片尺寸(一般不用设置，Glide会自动根据ImageView的大小来决定图片的大小)
+            .skipMemoryCache(true)//跳过内存缓存
+            .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)//根据图片资源智能地选择使用哪一种缓存策略（默认选项）
+            .diskCacheStrategy(DiskCacheStrategy.ALL)//既缓存原始图片，也缓存转换过的图片
+            .diskCacheStrategy(DiskCacheStrategy.DATA)//只缓存原始图片
+            .diskCacheStrategy(DiskCacheStrategy.RESOURCE)//只缓存转换过的图片
+            .diskCacheStrategy(DiskCacheStrategy.NONE)//禁用磁盘缓存
+            .priority(Priority.HIGH)//优先级
+            .thumbnail(
+                Glide.with(this).load(imgUrl).override(20)
+            ) //设置缩略图
+            .thumbnail(0.25f)//压缩原图为缩略图
+            .into(ivGlide2)
+        更多的可选配置可以参考官方文档
+
+    通过 RequestOptions 共享配置
+        val options = RequestOptions()
+            .placeholder(R.mipmap.ic_launcher)
+            .error(R.mipmap.ic_launcher)
+        Glide.with(this)
+            .load(imgUrl)
+            .apply(options)
+            .into(imageView1)
+        Glide.with(this)
+            .load(imgUrl)
+            .apply(options)
+            .into(imageView2)
+
+/* 源码解析 */
+    源码方面主要从最基本的三个方法入手：with，load，into
+
+    with
+        根据不同上下文对象有多个重载方法，首先通过getRetriever方法获取RequestManagerRetriever对象，再通过get方法获取RequestManager实例
+            public static RequestManager with(@NonNull Context context) {
+                return getRetriever(context).get(context);
+            }
+            public static RequestManager with(@NonNull Activity activity) {
+                return getRetriever(activity).get(activity);
+            }
+            public static RequestManager with(@NonNull FragmentActivity activity) {
+                return getRetriever(activity).get(activity);
+            }
+            public static RequestManager with(@NonNull Fragment fragment) {
+                return getRetriever(fragment.getContext()).get(fragment);
+            }
+            public static RequestManager with(@NonNull android.app.Fragment fragment) {
+                return getRetriever(fragment.getActivity()).get(fragment);
+            }
+            public static RequestManager with(@NonNull View view) {
+                return getRetriever(view.getContext()).get(view);
+            }
+        ✅getRetriever方法中通过Glide.get通过懒汉式+双重校验锁获取Glide单例,再通过getter方法获取requestManagerRetriever属性；
+            @NonNull
+            private static RequestManagerRetriever getRetriever(@Nullable Context context) {
+                // Context could be null for other reasons (ie the user passes in null), but in practice it will
+                // only occur due to errors with the Fragment lifecycle.
+                Preconditions.checkNotNull(
+                    context,
+                    "You cannot start a load on a not yet attached View or a Fragment where getActivity() "
+                            + "returns null (which usually occurs when getActivity() is called before the Fragment "
+                            + "is attached or after the Fragment is destroyed).");
+                return Glide.get(context).getRequestManagerRetriever();
+            }
+        ✅层层调用Glide glide = builder.build(applicationContext);
+            GlideBuilder.build方法 先初始化Glide，还有requestManagerRetriever = new RequestManagerRetriever作为属性
+            GlideBuilder.build方法代码如下
+                Glide build(@NonNull Context context) {
+                    //获取图片的线程池
+                    if (sourceExecutor == null) {
+                        sourceExecutor = GlideExecutor.newSourceExecutor();
+                    }
+                    //磁盘缓存的线程池
+                    if (diskCacheExecutor == null) {
+                        diskCacheExecutor = GlideExecutor.newDiskCacheExecutor();
+                    }
+                    //动画的线程池
+                    if (animationExecutor == null) {
+                        animationExecutor = GlideExecutor.newAnimationExecutor();
+                    }
+                    //创建内存大小控制器
+                    if (memorySizeCalculator == null) {
+                        memorySizeCalculator = new MemorySizeCalculator.Builder(context).build();
+                    }
+                    //创建网络监听的工厂
+                    if (connectivityMonitorFactory == null) {
+                        connectivityMonitorFactory = new DefaultConnectivityMonitorFactory();
+                    }
+
+                    if (bitmapPool == null) {
+                        int size = memorySizeCalculator.getBitmapPoolSize();
+                        if (size > 0) {
+                            // 使用缓存，则创建bitmap对象池
+                            bitmapPool = new LruBitmapPool(size);
+                        } else {
+                            // 不使用缓存
+                            bitmapPool = new BitmapPoolAdapter();
+                        }
+                    }
+                    //创建对象数组缓存池
+                    if (arrayPool == null) {
+                        arrayPool = new LruArrayPool(memorySizeCalculator.getArrayPoolSizeInBytes());
+                    }
+                    //创建内存缓存
+                    if (memoryCache == null) {
+                        memoryCache = new LruResourceCache(memorySizeCalculator.getMemoryCacheSize());
+                    }
+                    //创建硬盘缓存工厂
+                    if (diskCacheFactory == null) {
+                        diskCacheFactory = new InternalCacheDiskCacheFactory(context);
+                    }
+                    //创建引擎类
+                    if (engine == null) {
+                        engine =
+                                new Engine(
+                                        memoryCache,
+                                        diskCacheFactory,
+                                        diskCacheExecutor,
+                                        sourceExecutor,
+                                        GlideExecutor.newUnlimitedSourceExecutor(),
+                                        animationExecutor,
+                                        isActiveResourceRetentionAllowed);
+                    }
+
+                    if (defaultRequestListeners == null) {
+                        defaultRequestListeners = Collections.emptyList();
+                    } else {
+                        defaultRequestListeners = Collections.unmodifiableList(defaultRequestListeners);
+                    }
+
+                    GlideExperiments experiments = glideExperimentsBuilder.build();
+                    // ✅创建请求管理类，其构造方法中会实例化一个主线程的handler对象，用于线程的切换
+                    RequestManagerRetriever requestManagerRetriever =
+                            new RequestManagerRetriever(requestManagerFactory, experiments);
+
+                    return new Glide(
+                            context,
+                            engine,
+                            memoryCache,
+                            bitmapPool,
+                            arrayPool,
+                            requestManagerRetriever,
+                            connectivityMonitorFactory,
+                            logLevel,
+                            defaultRequestOptionsFactory,
+                            defaultTransitionOptions,
+                            defaultRequestListeners,
+                            experiments);
+                }
+        ✅回到最上面getRetriever(context).get(context);通过RequestManagerRetriever获取RequestManager
+            get最终会调用supportFragmentGet或fragmentGet获取requestManager实例，也是有多个重载方法根据context创建对应fragment，然后把fragment的lifecycle
+            public interface RequestManagerFactory {//RequestManagerFactory是RequestManagerRetriever内部接口
+                @NonNull
+                RequestManager build(
+                    @NonNull Glide glide,
+                    @NonNull Lifecycle lifecycle,
+                    @NonNull RequestManagerTreeNode requestManagerTreeNode,
+                    @NonNull Context context);
+            }
+            RequestManagerFactor.builde构建RequestManager对象
+            那么我们就知道了glide是通过在内部维护一个fragment来管理生命周期的
+            //有一个特殊的RequestManager，applicationManager，类似上面不过是通过ApplicationLifecycle去维护
+
+
+    load
+        此时的load其实已经是RequestManager.load方法，也是有多个重载方法，可以传入不同的图片源
+            public RequestBuilder<Drawable> load(@Nullable Bitmap bitmap) {
+                return asDrawable().load(bitmap);
+            }
+            public RequestBuilder<Drawable> load(@Nullable Drawable drawable) {
+                return asDrawable().load(drawable);
+            }
+            public RequestBuilder<Drawable> load(@Nullable String string) {
+                return asDrawable().load(string);
+            }
+            public RequestBuilder<Drawable> load(@Nullable Uri uri) {
+                return asDrawable().load(uri);
+            }
+            public RequestBuilder<Drawable> load(@Nullable File file) {
+                return asDrawable().load(file);
+            }
+            public RequestBuilder<Drawable> load(@RawRes @DrawableRes @Nullable Integer resourceId) {
+                return asDrawable().load(resourceId);
+            }
+            public RequestBuilder<Drawable> load(@Nullable URL url) {
+                return asDrawable().load(url);
+            }
+            public RequestBuilder<Drawable> load(@Nullable byte[] model) {
+                return asDrawable().load(model);
+            }
+            public RequestBuilder<Drawable> load(@Nullable Object model) {
+                return asDrawable().load(model);
+            }
+            上面代码中都会先调用asDrawable()
+        asDrawable()
+            asDrawable代码如下，其中只是调用as方法并传入Drawable.class, 再看看as方法，原来是创建一个图片类型为Drawable类型的RequestBuilder请求
+
+            public RequestBuilder<Drawable> asDrawable() {
+                return as(Drawable.class);
+            }
+
+            public <ResourceType> RequestBuilder<ResourceType> as(
+                  @NonNull Class<ResourceType> resourceClass) {
+                return new RequestBuilder<>(glide, this, resourceClass, context);
+            }
+            而且我们发现还要相似的asBitmap，asGif
+
+            public RequestBuilder<GifDrawable> asGif() {
+                return as(GifDrawable.class).apply(DECODE_TYPE_GIF);
+            }
+
+            public RequestBuilder<Bitmap> asBitmap() {
+                return as(Bitmap.class).apply(DECODE_TYPE_BITMAP);
+            }
+            现在我们知道了RequestManager.load是通过获取RequestBuilder实例，再调用其load方法
+        RequestBuilder.load
+            RequestBuilder.load也是有多个重载方法,但其中都是调用loadGeneric方法
+                public RequestBuilder<TranscodeType> load(@Nullable String string) {
+                    return loadGeneric(string);
+                }
+                public RequestBuilder<TranscodeType> load(@Nullable Uri uri) {
+                    return loadGeneric(uri);
+                }
+                public RequestBuilder<TranscodeType> load(@Nullable File file) {
+                    return loadGeneric(file);
+                }
+                public RequestBuilder<TranscodeType> load(@Nullable Drawable drawable) {
+                    return loadGeneric(drawable).apply(diskCacheStrategyOf(DiskCacheStrategy.NONE));
+                }
+                public RequestBuilder<TranscodeType> load(@Nullable Bitmap bitmap) {
+                    return loadGeneric(bitmap).apply(diskCacheStrategyOf(DiskCacheStrategy.NONE));
+                }
+                public RequestBuilder<TranscodeType> load(@RawRes @DrawableRes @Nullable Integer resourceId) {
+                    return loadGeneric(resourceId).apply(signatureOf(AndroidResourceSignature.obtain(context)));
+                }
+            loadGeneric代码如下,主要是将图片源保存起来，并设置是否设置了图片源的标识isModelSet = true,最后返回了RequestBuilder自身this
+                private RequestBuilder<TranscodeType> loadGeneric(@Nullable Object model) {
+                    if (isAutoCloneEnabled()) {
+                      return clone().loadGeneric(model);
+                    }
+                    this.model = model;
+                    isModelSet = true;
+                    return selfOrThrowIfLocked();
+                }
+
+                protected final T selfOrThrowIfLocked() {
+                    if (isLocked) {
+                      throw new IllegalStateException("You cannot modify locked T, consider clone()");
+                    }
+                    return self();
+                }
+
+                private T self() {
+                    return (T) this;
+                }
+
+    into
+        RequestBuilder.into方法设置目标view
+            public ViewTarget<ImageView, TranscodeType> into(@NonNull ImageView view) {
+                Util.assertMainThread();//断言是在主线程调用的
+                Preconditions.checkNotNull(view);//非空判断
+                BaseRequestOptions<?> requestOptions = this;
+                if (!requestOptions.isTransformationSet()
+                    && requestOptions.isTransformationAllowed()
+                    && view.getScaleType() != null) {
+                  //熟悉的ScaleType们
+                  switch (view.getScaleType()) {
+                    case CENTER_CROP:
+                      requestOptions = requestOptions.clone().optionalCenterCrop();
+                      break;
+                    case CENTER_INSIDE:
+                      requestOptions = requestOptions.clone().optionalCenterInside();
+                      break;
+                    case FIT_CENTER:
+                    case FIT_START:
+                    case FIT_END:
+                      requestOptions = requestOptions.clone().optionalFitCenter();
+                      break;
+                    case FIT_XY:
+                      requestOptions = requestOptions.clone().optionalCenterInside();
+                      break;
+                    case CENTER:
+                    case MATRIX:
+                    default:
+                      // Do nothing.
+                  }
+                }
+
+                return into(
+                    glideContext.buildImageViewTarget(view, transcodeClass),
+                    /*targetListener=*/ null,
+                    requestOptions,
+                    Executors.mainThreadExecutor());
+            }
+
+            最终是将view通过buildImageViewTarget方法转为target,transcodeClass为Bitmap.class或Drawable.class
+            .....
+            到此我们终于看到了网络请求相关的代码，原来Glide使用的HttpURLConnection进行网络请求
+======================================================================================================================
+Glide图片预加载的正确姿势
+https://github.com/android/nowinandroid/tree/main/app/src
+
+
+
+

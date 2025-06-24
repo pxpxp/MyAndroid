@@ -1,0 +1,38 @@
+升级
+    ```
+    @Database(entities = {MsgBean.class, FriendAccountBean.class, CollectInfo.class, QuickSendRecordBean.class},
+            version = 3,
+            autoMigrations = {@AutoMigration(from = 2, to = 3)}
+    )
+    public abstract class CloudFileDB extends RoomDatabase {
+
+        private static final String DATABASE_NAME = "cloud_file_db";
+
+        private static CloudFileDB databaseInstance;
+
+        public static synchronized CloudFileDB getInstance(Context context) {
+            if (databaseInstance == null) {
+                databaseInstance = Room
+                        .databaseBuilder(context.getApplicationContext(), CloudFileDB.class, DATABASE_NAME)
+    //                    .addMigrations(MIGRATION_2_3)
+                        .build();
+            }
+            return databaseInstance;
+        }
+
+    //    public static Migration MIGRATION_2_3 = new Migration(2, 3) {
+    //        @Override
+    //        public void migrate(@NonNull SupportSQLiteDatabase database) {
+    //            database.execSQL("create table QuickSendRecord (id INTEGER primary key autoincrement not null, number TEXT, recentUseTime TEXT)");
+    //        }
+    //    };
+
+        public abstract MessageDao getMessageDao();
+
+        public abstract FriendAccountDao getFriendAccountDao();
+
+        public abstract CollectDao getCollectDao();
+
+        public abstract QuickSendRecordDao getQuickSendRecordDao();
+    }
+    ```

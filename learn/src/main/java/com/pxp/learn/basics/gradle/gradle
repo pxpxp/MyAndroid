@@ -1,0 +1,46 @@
+Gradle 构建工具 #1 为什么说 Gradle 是 Android 进阶绕不去的坎
+https://juejin.cn/post/7092367604211253256
+
+一、认识 Gradle 构建工具
+    Gradle Daemon
+    Gradle Daemon 是 Gradle 3.0 引入的构建优化策略，通过规避重复创建 JVM 和内存缓存的手段提升了构建速度。 Daemon 进程才是执行构建的进程，当构建结束后，Daemon 进程并不会立即销毁，而是保存在内存中等待承接下一次构建。根据官方文档说明，Gradle Daemon 能够降低 15-75% 的构建时间。
+        Daemon 的优化效果主要体现在 3 方面：
+            1、缩短 JVM 虚拟机启动时间： 不需要重复创建；
+            2、JIT 编译： Daemon 进程会执行 JIT 编译，有助于提升后续构建的字节码执行效率；
+            3、构建缓存： 构建过程中加载的类、资源或者 Task 的输入和输出会保存在内存中，可以被后续构建复用。
+            相关的 Gradle 命令：
+                gradle —status： 查看存活的 Daemon 进程信息；
+                gradle —stop： 停止所有 Daemon 进程。
+
+    简单说下 Gradle Wrapper 相关的文件，主要有 4 个：
+        gradlew & gradlew.bat： 在 Linux 或 Mac 上可用的 Shell 脚本，以及在 Window 上可用的 Batch 脚本，用于以 Gradle Wrapper 的方式执行构建。也就是说，在命令行使用 gradlew 才是基于 Gradle Wrapper 执行的，而使用 gradle 命令是直接基于系统安装的 Gradle 环境执行编译；
+        gradle-wrapper.jar： 负责下载安装 Gradle 环境的脚本；
+        gradle-wrapper.properties： Gradle Wrapper 的配置文件，主要作用是决定 Gradle 版本和安装目录：
+            distributionBase + distributionPath：指定 Gradle 环境安装路径；
+            zipStoreBase + zipStorePath：指定 Gradle 安装包的存储路径；
+            distributionUrl：指定版本 Gradle 的下载地址，通过这个参数可以配置项目工程所需要的 Gradle 版本。
+            提示： GRADLE_USER_HOME 的默认值是 用户目录/.gradle，可以通过系统环境变量 GRADLE_USER_HOME 修改。
+
+    gradle.properties 构建环境配置
+        Gradle 是运行在 Java 虚拟机的，gradle.properties 文件可以配置 Gradle 构建的运行环境，并且会覆盖 Android Studio 设置中的全局配置，完整构建环境配置见官方文档：Build Enviroment。常用的配置项举例：
+
+        # Gradle Daemon 开关，默认 ture
+        org.gradle.daemon=true
+        # 虚拟机参数
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        # 多模块工程并行编译多个模块，会消耗更多内存
+        org.gradle.parallel=true
+        # 除了构建环境配置，其他配置也可以用类似的键值对方式放在 gradle.properties 中，并直接在 .gradle 文件中引用。
+
+二、Groovy 必知必会
+梳理 Groovy 与 Java 之间有差异的地方，或许是更高效的学习方式：
+    1.一些小差异
+        分号： 语句允许不以分号 ; 结尾；
+        public： 默认的访问修饰符为 public；
+        getter / setter： Groovy 会为每个 field 创建对应的 getter / setter 方法，在访问 obj.field / obj.field=”” 时，实际上是在访问 getField() 和 setField(””)；
+            支持静态类型和动态类型： Groovy 既支持 Java 的静态类型，也支持通过 def 关键字声明动态类型（静态类型和动态类型的关键区别在于 ”类型检查是否倾向于在编译时执行“。例如 Java 是静态类型语言，意味着类型检查主要由编译器在编译时完成）；
+        字符串： Groovy 支持三种格式定义字符串 —— 单引号、双引号和三引号
+            单引号：纯粹的字符串，与 Java 的双引号字符串类似；
+            双引号：支持在引号内通过 $ 关键字直接引用变量值；
+            三引号：支持换行。
+    2.函数

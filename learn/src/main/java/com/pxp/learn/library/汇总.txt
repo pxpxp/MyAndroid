@@ -1,0 +1,21 @@
+探索Android开源框架
+http://mp.weixin.qq.com/mp/homepage?__biz=MzU5NzY1MTE4MQ==&hid=14&sn=01d7e9c092021addc3984b1ba687ffe3&scene=18#wechat_redirect
+1. OkHttp源码解析
+https://mp.weixin.qq.com/s/TNCqSQb3V6e5OzILZxmOTQ
+2. Retrofit使用及源码解析
+https://mp.weixin.qq.com/s/rxhrxtHE7_mUEdZGx0jICQ
+
+4. Glide使用及源码解析
+https://mp.weixin.qq.com/s/oSXDYhc_t4xhAVCfADxXfg
+5. EventBus使用及源码解析
+https://mp.weixin.qq.com/s/ZihYJ-9IuechILKIMavh6A
+
+9. ARouter使用及源码解析
+https://mp.weixin.qq.com/s/sFM3OCorZ8HzV0R89cUAEw
+
+
+==================================
+Retrofit上传/下载文件 (一)
+https://blog.csdn.net/gqg_guan/article/details/126586504
+
+

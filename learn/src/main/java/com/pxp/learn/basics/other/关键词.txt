@@ -1,0 +1,48 @@
+1.by委托机制
+https://mp.weixin.qq.com/s/iX4HkWEq82T9lkofvlVsNg
+委托机制是一种非常灵活的语言特性，它可以让我们将对象的某些属性或方法委托给其他对象来处理
+
+接口是把接口方法委托出去，那属性要委托什么呢？很简单，对于一个属性，无非有两个操作：获取属性以及修改属性，也就是对应的 get()/set() 。
+属性委托即是将对应的 get()/set() 操作分发给指定委托对象的 getValue()/setValue() 方法执行；当然，如果是 val 修饰的属性，
+只需要提供 getValue() 即可。
+
+延迟委托 （by lazy）
+lazy() 是接受一个 lambda 表达式， 并返回一个 Lazy <T> 实例的函数，返回的实例可以作为实现延迟属性的委托：
+第一次调用属性的 get() 会执行已传递给 lazy() 的 lambda 表达式并记录结果； 后续调用直接返回已经记录的结果。
+
+可观察属性（observable properties）
+Delegates.observable()可以认为是一个属性监听器，当监听的属性变更时会收到通知。其接受两个参数：初始值initialValue与onChange()函数，
+当属性被赋值后就会触发onChange()，内部有三个参数：被赋值的属性、旧值与新值。
+
+属性之间的委托
+从 Kotlin 1.4 开始，一个属性可以把它的 getter 与 setter 委托给另一个属性，被委托的属性属于顶层或普通类属性都可。
+为将一个属性委托给另一个属性，可以使用 :: 限定符，例如，this::delegate 或 MyClass::delegate。
+示例：
+当想要以一种向后兼容的方式重命名一个属性的时候：引入一个新的属性、 使用 @Deprecated 注解来注解旧的属性、并委托其实现。
+
+
+2.Kotlin 的 Lazy ， 能玩出什么花样？
+https://mp.weixin.qq.com/s/ZG7xDzF5YiZpTvGlyhEbnw
+
+
+3.Kotlin中inline、noinline和corssinline到底是什么？
+https://juejin.cn/post/7244498421284945981
+inline内联
+被inline修饰的方法叫做内联函数，它修饰的方法需要接收了一个或多个lambda表达式作为参数，
+如果此方法参数没有lambda表达式，那么编译器将提醒你Expected performance impact from inlining is insignificant.
+Inlining works best for functions with parameters of functional types，这个警告说明：此内联对性能的影响很小、微乎其微，
+内联适合的是具有函数类型的参数，所以编译器觉得此方法不适用于inline修饰。
+我们来通过inline和非inline函数对比一下它的作用，两个方法实现相同的功能，然后看下最终编译器是如何调用两种函数。
+
+noinline
+上面我们了解了inline内联函数的使用和优势，接着我们看一下配合inline使用的noinline，看名字大致可以猜测到，
+noinline就是非内联的意思，也就是表明被noinline修饰的参数强制不允许内联，此参数作为一个普通的函数引用传递，
+并且noinline必须搭配inline使用。下面还是通过代码来直观感受下noinline的作用。
+
+crossinline
+crossinline相对于前面inline和noinline来说，它使用的地方较少，个人的理解它的意思为强制内联的意思，
+它表示被修饰的lambda参数强制执行内联作用，一般我们见到的使用它的地方都是在内联函数中使用了lambda表达式，
+并且在此表达式调用了内联函数的lambda参数，此时如果不使用crossinline修饰参数，编译器会报错，下面我们通过代码来说明
+
+
+

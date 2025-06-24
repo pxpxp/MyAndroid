@@ -1,0 +1,33 @@
+1.Android 12
+android:exported 属性
+    在 Android 12 中包含 <intent-filter> 的 activity 、 service 或 receiver 必须为这些应用组件显示声明 android:exported 属性
+    android:exported 属性的默认值取决于是否包含 <intent-filter>，如果包含 <intent-filter> 那么默认值为 true，否则 false。
+    当 android:exported="true" 时，如果不做任何处理，可以接受来自其他 App 的访问
+    当 android:exported="false" 时，限制为只接受来自同一个 App 或一个具有相同 user ID 的 App 的访问
+
+需要显示的指定 PendingIntent 的可变性
+    一个 PendingIntent 是一个可以给另一个应用程序使用的 Intent，PendingIntent 接收待处理意图的应用程序可以使用与产生待处理意图的应用程序相同的权限和身份执行待处理意图中指定的操作。
+    因此，创建待处理意图时必须小心，为了安全性 Google 在 Android 12 中需要开发者自己来指定 PendingIntent 的可变性。
+
+adb 备份限制
+    Android 开发者都应该知道这个命令 adb backup , 它可以备份应用的数据，在 Android 12 中，为了保护私有应用数据，用户运行 adb backup 命令时，从设备导出的任何其他系统数据都不包含应用数据。
+    如果你在测试和开发过程中需要使用 adb backup 来备份应用数据，你可以在 AndroidManifest 中将 android:debuggable 设置为 true 来导出应用数据。
+    <application
+        android:name=".App"
+        android:debuggable="true"
+        ....../>
+    注意：在发布应用前将 android:debuggable 设置为 false。
+
+    为什么在 Android 12 上限制了 adb backup 命令的默认行为
+    因为这个存在严重的安全问题，当初 Google 为了提供 App 数据备份和恢复功能，可以在 AndroidManifest 中添加 android:allowBackup 属性，默认值为 true, 当你创建一个应用的时候，会默认添加这个属性，如下所示。
+    <application
+        android:name=".App"
+        android:allowBackup="true"
+        ....../>
+    当 android:allowBackup="true" 时，用户可以通过 adb backup 和 adb restore 命令对应用数据进行备份和恢复，也就是说可以在其他的 Android 手机上安装同一个应用，通过如上命令恢复用户的数据。
+    为了安全起见，我们在发布出去的 Apk 中一定要将 android:allowBackup 属性设置为 false 来关闭应用程序的备份和恢复功能，以免造成信息泄露。国民级应用 XX 信, 在曾今发出的版本中 allowBackup 的属性值是 true，被其他逆向开发者利用之后，现在的版本中这个值已经修改为 false了，有兴趣的小伙们可以反编译看看。
+
+    如何检查 App 的安全漏洞
+    在这里推荐一个开源项目 linkedin/qark  这是由 LinkedIn 开源的项目，这个工具被设计用来寻找与安全相关的 Android 应用程序漏洞，无论是源代码还是打包的 APK，具体的用法文档上写的非常的清楚了，这里不做详细的介绍了。
+    https://github.com/linkedin/qark
+    这个开源项目的检查结果，作为参考即可
